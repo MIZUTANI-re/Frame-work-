@@ -12,7 +12,7 @@
 |---|---|---|---|
 | 0 | 設計書・MVP のフレームワーク選定 | — | 済 |
 | 1 | 土台：ログイン・授業・招待コード・班分け・Teams 風の枠 | F-01〜F-05・F-16 | [step1](tasks/step1_foundation.md)（済） |
-| 1.5 | 公開の準備：Docker の箱・環境変数・`/healthz`・Cloudflare Tunnel（[配置・移行設計書](08_deployment_design.md)） | — | [step1.5](tasks/step1_5_deploy.md) |
+| 1.5 | 公開の準備：Docker の箱・環境変数・`/healthz`・Cloudflare Tunnel（[配置・移行設計書](08_deployment_design.md)） | — | [step1.5](tasks/step1_5_deploy.md)（済。トンネルは本人の PC で確かめる） |
 | 2a | 画面を「準備・授業中・成果」に分ける＋フレームワークを探して選ぶ（下にチャットの枠）＋授業の流れ（並べる・配る） | F-06・F-20 | [step2a](tasks/step2a_setup_flow.md)（本人の OK 待ち） |
 | 2b | ゾーン型ボード：付箋・リアルタイム同期・作成者表示（ブレスト・SWOT） | F-07・F-08 | [step2b](tasks/step2b_zone_board.md)（本人の OK 待ち） |
 | 3 | 進め方：個人ワーク（タイマーで自動公開）→ 公開 → まとめる → 投票 → 結論。流れを順番に進める・前のボードから持ち込む | F-09〜F-12・F-17・F-18 | 未 |
