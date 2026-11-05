@@ -2,11 +2,12 @@
 置き場所（PC・Azure）で変わる値は、すべて環境変数だけで変える（M-2）。"""
 # ※ 未習: 環境変数 — プログラムの外（OS・Docker）から渡す設定値。コードを変えずに置き場所ごとの違いを渡せる
 import os
+import secrets
 import warnings
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-DEV_SECRET_KEY = "dev-only-secret-key-change-me"
+APP_ENVS = ("development", "production")
 
 
 def _read_dotenv() -> dict[str, str]:
@@ -30,8 +31,11 @@ def _get(name: str, default: str) -> str:
 
 
 def app_env() -> str:
-    """development か production。"""
-    return _get("APP_ENV", "development")
+    """development か production。それ以外は打ちまちがいとみなして止める。"""
+    env = _get("APP_ENV", "development")
+    if env not in APP_ENVS:
+        raise RuntimeError(f"APP_ENV は {' か '.join(APP_ENVS)} にしてください（今: {env!r}）")
+    return env
 
 
 def is_production() -> bool:
@@ -54,5 +58,6 @@ def get_secret_key() -> str:
         return key
     if is_production():
         raise RuntimeError("APP_ENV=production では SECRET_KEY が必要です（.env か環境変数に書いてください）")
-    warnings.warn("SECRET_KEY が設定されていません。開発用の値を使います（本番では必ず設定してください）。")
-    return DEV_SECRET_KEY
+    # 開発用の鍵は起動のたびに作る乱数（固定の値を公開リポジトリに置かない）。再起動するとログインは外れる
+    warnings.warn("SECRET_KEY が設定されていません。起動のたびに変わる開発用の鍵を使います。")
+    return secrets.token_urlsafe(32)

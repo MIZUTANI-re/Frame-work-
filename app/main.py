@@ -10,7 +10,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.config import BASE_DIR, cookie_secure, get_secret_key, is_production
-from app.db import SessionLocal, create_tables, engine, ensure_db_dir, get_db
+from app.db import SessionLocal, get_db, upgrade_database
 from app.routers import auth, courses, teams
 from app.security import LoginRequired, get_user_or_none
 from app.templating import render
@@ -20,15 +20,14 @@ JSON_PATHS = ("/healthz", "/openapi.json", "/docs")
 ERROR_TEXTS = {
     403: ("この操作はできません", "この操作をする権限がありません。"),
     404: ("見つかりません", "ページが見つからないか、見る権限がありません。"),
+    405: ("見つかりません", "ページが見つからないか、見る権限がありません。"),
 }
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    if is_production():
-        ensure_db_dir(str(engine.url))  # テーブルは Alembic が作る（scripts/start.sh）
-    else:
-        create_tables()  # 開発中は起動時にテーブルを作る
+    if not is_production():
+        upgrade_database()  # 開発中は起動時に Alembic でテーブルを最新にする（production は scripts/start.sh がやる）
     yield
 
 
@@ -68,7 +67,7 @@ def create_app() -> FastAPI:
 
     @app.exception_handler(StarletteHTTPException)
     def http_error_handler(request: Request, exc: StarletteHTTPException):
-        """403・404 は Teams 風の枠の中に出す。それ以外と JSON の URL は標準のまま。"""
+        """403・404・405 は Teams 風の枠の中に出す。それ以外と JSON の URL は標準のまま。"""
         if exc.status_code not in ERROR_TEXTS or request.url.path.startswith(JSON_PATHS):
             return JSONResponse({"detail": exc.detail}, status_code=exc.status_code,
                                 headers=getattr(exc, "headers", None))

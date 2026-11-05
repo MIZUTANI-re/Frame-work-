@@ -7,4 +7,5 @@ venv/
 
 # 設定と DB（Git に入れない）
 .env
+deploy.env
 data/

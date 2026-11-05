@@ -98,13 +98,16 @@ def create_team(name: str = Form(""), user: User = Depends(get_current_user),
 def assign_randomly(count: int = Form(...), user: User = Depends(get_current_user),
                     course: Course = Depends(require_course_teacher),
                     db: Session = Depends(get_db)):
-    """全学生をランダムに count 個の班へ振り分ける（人数の差は 1 以下）。
+    """全学生をランダムに count 個の班へ振り分ける（学生が班より多ければ人数の差は 1 以下）。
     班は消さない（D-028・D-030）。count が今の班より少なければ何も変えない。足りない分は作る。"""
     students = students_of(db, course.id)
-    if count < 1 or count > len(students):
+    # 班の数は「今の班の数以上」。学生の人数以下か、今の班の数と同じなら通す（空の班があってよい。D-041）
+    if count < 1:
         return redirect(members_url(course.id, "count_invalid"))
     if count < len(course.teams):
         return redirect(members_url(course.id, "count_below_teams"))
+    if count > len(students) and count != len(course.teams):
+        return redirect(members_url(course.id, "count_over_students"))
 
     course_id = course.id
     try:

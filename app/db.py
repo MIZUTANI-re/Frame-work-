@@ -4,18 +4,30 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import Request
-from sqlalchemy import DateTime, create_engine
+from sqlalchemy import DateTime, MetaData, create_engine, event
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 from sqlalchemy.types import TypeDecorator
 
-from app.config import database_url
+from app.config import BASE_DIR, database_url
+
+
+# 制約の名前の決まり。名前が決まっていると、あとで Alembic が制約を変えたり消したりできる
+NAMING_CONVENTION = {
+    "ix": "ix_%(column_0_label)s",
+    "uq": "uq_%(table_name)s_%(column_0_N_name)s",
+    "ck": "ck_%(table_name)s_%(constraint_name)s",
+    "fk": "fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s",
+    "pk": "pk_%(table_name)s",
+}
 
 
 class Base(DeclarativeBase):
     """全テーブルの親クラス。"""
+    metadata = MetaData(naming_convention=NAMING_CONVENTION)
 
 
+# ※ 未習: SQLAlchemy の TypeDecorator — 列の型に「書き込む前・読み出した後」の変換を足す仕組み
 class UTCDateTime(TypeDecorator):
     """日時はすべて UTC で持つ型（D-027）。
     書き込むときは UTC にそろえ、読み出すときは必ず「UTC のタイムゾーン付き」にする。
@@ -48,7 +60,14 @@ def ensure_db_dir(url: str) -> None:
 def make_engine(url: str):
     """URL から engine を作る。"""
     if url.startswith("sqlite"):
-        return create_engine(url, connect_args={"check_same_thread": False})
+        engine = create_engine(url, connect_args={"check_same_thread": False})
+
+        @event.listens_for(engine, "connect")
+        def enable_foreign_keys(dbapi_connection, _):
+            # SQLite は外部キーを確かめないのが初期設定なので、PostgreSQL と同じに確かめさせる
+            dbapi_connection.execute("PRAGMA foreign_keys=ON")
+
+        return engine
     return create_engine(url)
 
 
@@ -66,9 +85,12 @@ def get_db(request: Request) -> Iterator[Session]:
         db.close()
 
 
-def create_tables() -> None:
-    """テーブルが無ければ作る（development の起動時。production は Alembic が作る）。"""
-    from app import models  # noqa: F401  （テーブル定義を読み込むために必要）
+def upgrade_database() -> None:
+    """テーブルを最新にする（alembic upgrade head をプログラムから呼ぶ）。
+    テーブルを作るのは Alembic だけ（D-039）。create_all はテストだけで使う。"""
+    from alembic import command
+    from alembic.config import Config
 
-    ensure_db_dir(str(engine.url))
-    Base.metadata.create_all(engine)
+    config = Config(str(BASE_DIR / "alembic.ini"))
+    config.attributes["configure_logger"] = False  # 起動中のアプリのログ設定を壊さない
+    command.upgrade(config, "head")

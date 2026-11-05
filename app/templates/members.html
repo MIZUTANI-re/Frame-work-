@@ -51,6 +51,20 @@
 </section>
 {% endfor %}
 
+{% if locked %}
+<section class="panel">
+  <h3>ログインが止まっている学生</h3>
+  <ul>
+    {% for s in locked %}
+      <li>{{ s.name }}
+        <form method="post" action="/courses/{{ course.id }}/students/{{ s.id }}/unlock" class="inline">
+          <button type="submit" class="link">止まりを解く</button>
+        </form></li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+
 <section class="panel">
   <h3>班が決まっていない学生</h3>
   <ul>

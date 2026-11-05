@@ -5,15 +5,18 @@
 - 404: 存在を知られたくないもの（他の班・担当外の授業）
 - 403: 存在は知っていてよいが操作できないもの（学生がメンバー管理を開く）
 """
+from datetime import timedelta
+
 from fastapi import Depends, HTTPException, Request
 from pwdlib import PasswordHash
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from app.db import get_db
-from app.models import Course, Enrollment, Team, TeamMember, User
+from app.events import record_event
+from app.models import Course, Enrollment, Team, TeamMember, User, now
 
-# パスワードの最低の長さ（案。Q18）
+# パスワードの最低の長さ（D-029）
 MIN_PASSWORD_LENGTH = {"teacher": 10, "student": 6}
 
 # ※ 未習: argon2 のハッシュ化 — パスワードを元に戻せない文字列に変えて保存する方法
@@ -26,6 +29,52 @@ def hash_password(password: str) -> str:
 
 def verify_password(password: str, password_hash: str) -> bool:
     return _hasher.verify(password, password_hash)
+
+
+# ログインの総当たり対策（D-029）：5 回続けてまちがえたら 5 分止める
+MAX_FAILED_LOGINS = 5
+LOCK_MINUTES = 5
+
+
+def is_locked(user: User) -> bool:
+    return user.locked_until is not None and user.locked_until > now()
+
+
+def check_password_with_lock(db: Session, user: User, password: str) -> str:
+    """パスワードを確かめる（止まりの判定つき）。パスワードを確かめる所はすべてこれを通す（D-040）。
+    返す値：
+      "locked" … 止まっている（正しいパスワードでも入れない）
+      "ok"     … 合っている（まちがいの数をゼロに戻す）
+      "wrong"  … まちがい（数を 1 増やし、5 回目で止める）
+    数えるのは DB の 1 回の UPDATE。同時に送られても、数が取りこぼされない。"""
+    if is_locked(user):
+        return "locked"
+    if verify_password(password, user.password_hash):
+        if user.failed_logins or user.locked_until:
+            user.failed_logins = 0
+            user.locked_until = None
+            db.commit()
+        return "ok"
+    # 読んで足して書く、ではなく「今の値に 1 を足す」を DB に任せる。足したあとの値は RETURNING で受け取る
+    count = db.execute(
+        update(User).where(User.id == user.id)
+        .values(failed_logins=User.failed_logins + 1)
+        .returning(User.failed_logins)).scalar_one()
+    if count >= MAX_FAILED_LOGINS:
+        db.execute(update(User).where(User.id == user.id).values(
+            failed_logins=0, locked_until=now() + timedelta(minutes=LOCK_MINUTES)))
+    db.commit()
+    return "wrong"
+
+
+def unlock_user(db: Session, user: User, actor_id: int | None = None,
+                course_id: int | None = None) -> None:
+    """止まりを解く（教員の操作、または unlock コマンド）。記録を残す。"""
+    user.failed_logins = 0
+    user.locked_until = None
+    record_event(db, "user.unlocked", actor_id=actor_id, course_id=course_id,
+                 user_id=user.id, name=user.name)
+    db.commit()
 
 
 class LoginRequired(Exception):

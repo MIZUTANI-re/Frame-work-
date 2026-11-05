@@ -18,16 +18,16 @@ def members_error(client, course, key):
 
 def test_班の数が不正だと何も変わらず通知が出る(teacher_client, make_client, course, db):
     join_students(make_client, course.invite_code, ["学生A", "学生B"])
-    for count in (0, 3):  # 0 と、学生の人数より多い数
+    for count, key in ((0, "count_invalid"), (3, "count_over_students")):  # 0 と、学生の人数より多い数
         r = teacher_client.post(f"/courses/{course.id}/teams/random", data={"count": count})
-        assert r.headers["location"].endswith("error=count_invalid")
+        assert r.headers["location"].endswith(f"error={key}")
     assert db.scalar(select(Team)) is None
     assert "班の数は 1 以上" in members_error(teacher_client, course, "count_invalid")
 
 
 def test_学生0人の授業ではランダム振り分けできない(teacher_client, course, db):
     r = teacher_client.post(f"/courses/{course.id}/teams/random", data={"count": 1})
-    assert r.headers["location"].endswith("error=count_invalid")
+    assert r.headers["location"].endswith("error=count_over_students")
     assert db.scalar(select(Team)) is None
 
 
@@ -141,7 +141,7 @@ def test_CLIでパスワード確認が合わないと作られない(monkeypatc
     answers = iter(["pass-0123456789", "ちがう-0123456789"])
     monkeypatch.setattr(cli.getpass, "getpass", lambda prompt="": next(answers))
     monkeypatch.setattr(cli, "SessionLocal", session_factory)
-    monkeypatch.setattr(cli, "create_tables", lambda: None)
+    monkeypatch.setattr(cli, "upgrade_database", lambda: None)
     assert cli.main(["create-teacher", "--name", "先生D"]) == 1
     assert "一致しません" in capsys.readouterr().err
     assert db.scalar(select(User).where(User.name == "先生D")) is None
@@ -150,7 +150,7 @@ def test_CLIでパスワード確認が合わないと作られない(monkeypatc
 def test_CLIで確認が合えば教員が作られる(monkeypatch, db, session_factory):
     monkeypatch.setattr(cli.getpass, "getpass", lambda prompt="": "pass-0123456789")
     monkeypatch.setattr(cli, "SessionLocal", session_factory)
-    monkeypatch.setattr(cli, "create_tables", lambda: None)
+    monkeypatch.setattr(cli, "upgrade_database", lambda: None)
     assert cli.main(["create-teacher", "--name", "先生D"]) == 0
     assert db.scalar(select(User).where(User.name == "先生D")).role == "teacher"
 

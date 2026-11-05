@@ -1,4 +1,18 @@
-"""テストの共通部品。DB は一時ファイルの SQLite を使い、data/app.db には触らない。"""
+"""テストの共通部品。DB は一時ファイルの SQLite を使い、data/app.db には触らない。
+テストは .env も環境変数も読まない（D-038）。app を import する前に止める。"""
+import os
+
+import app.config as _config
+
+# 設定に関わる環境変数を消し、.env も読ませない。そのうえでテスト用の値を入れる
+for _name in ("SECRET_KEY", "APP_ENV", "COOKIE_SECURE", "DATABASE_URL", "PORT",
+              "FORWARDED_ALLOW_IPS"):
+    os.environ.pop(_name, None)
+_config._read_dotenv = lambda: {}
+os.environ["SECRET_KEY"] = "test-secret-key-for-pytest"
+os.environ["APP_ENV"] = "development"
+os.environ["DATABASE_URL"] = "sqlite:///:memory:"  # 万一 data/app.db に触れないように
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import sessionmaker

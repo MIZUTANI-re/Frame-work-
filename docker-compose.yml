@@ -2,7 +2,7 @@ services:
   # アプリの箱
   app:
     build: .
-    env_file: .env
+    env_file: deploy.env
     volumes:
       - ./data:/app/data
     ports:

@@ -1,5 +1,5 @@
 """授業の作成・ホーム・メンバー管理・招待コード（F-03・F-05 の画面）。"""
-from fastapi import APIRouter, Depends, Form, Request
+from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from app.db import get_db
@@ -8,8 +8,8 @@ from app.messages import error_text
 from app.models import COURSE_NAME_MAX, Course, User
 from app.queries import students_of
 from app.routers.auth import redirect
-from app.security import (get_current_user, require_course_member,
-                          require_course_teacher, require_teacher, team_of_student)
+from app.security import (get_current_user, is_enrolled, is_locked, require_course_member,
+                          require_course_teacher, require_teacher, team_of_student, unlock_user)
 from app.templating import render
 
 router = APIRouter()
@@ -56,8 +56,9 @@ def members_page(request: Request, error: str | None = None,
     students = students_of(db, course.id)
     in_team = {m.user_id for team in course.teams for m in team.members}
     unassigned = [s for s in students if s.id not in in_team]
-    return render(request, db, "members.html", user=user, course=course,
-                  students=students, unassigned=unassigned, msg=error_text(error))
+    locked = [s for s in students if is_locked(s)]
+    return render(request, db, "members.html", user=user, course=course, students=students,
+                  unassigned=unassigned, locked=locked, msg=error_text(error))
 
 
 @router.post("/courses/{course_id}/invite-code/regenerate")
@@ -66,4 +67,16 @@ def regenerate_code(course: Course = Depends(require_course_teacher),
     """招待コードを作り直す。古いコードは使えなくなる（参加済みの学生はそのまま）。"""
     course.invite_code = generate_unique_code(db)
     db.commit()
+    return redirect(f"/courses/{course.id}/members")
+
+
+@router.post("/courses/{course_id}/students/{student_id}/unlock")
+def unlock_student(student_id: int, user: User = Depends(get_current_user),
+                   course: Course = Depends(require_course_teacher),
+                   db: Session = Depends(get_db)):
+    """ログインが止まっている学生の止まりを解く。担当教員が、その授業の学生にだけできる。"""
+    student = db.get(User, student_id)
+    if student is None or not is_enrolled(db, course.id, student_id):
+        raise HTTPException(status_code=404)
+    unlock_user(db, student, actor_id=user.id, course_id=course.id)
     return redirect(f"/courses/{course.id}/members")

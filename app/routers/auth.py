@@ -1,6 +1,4 @@
 """ログイン・ログアウト・授業への参加（F-02・F-04）。"""
-from datetime import timedelta
-
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import RedirectResponse
 from sqlalchemy import select
@@ -9,18 +7,15 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.events import record_event
-from app.models import USER_NAME_MAX, Course, Enrollment, User, now
+from app.models import USER_NAME_MAX, Course, Enrollment, User
 from app.queries import find_user_by_name
-from app.security import (MIN_PASSWORD_LENGTH, get_user_or_none, hash_password,
-                          password_too_short, verify_password)
+from app.security import (MIN_PASSWORD_LENGTH, check_password_with_lock, get_user_or_none,
+                          hash_password, password_too_short)
 from app.templating import courses_of, render
 
 router = APIRouter()
 
-# ログインの総当たり対策（案。Q18）：5 回続けてまちがえたら 5 分止める
-MAX_FAILED_LOGINS = 5
-LOCK_MINUTES = 5
-
+LOCKED_MESSAGE = "何度もまちがえたため、しばらくログインできません。時間をおいてやり直してください"
 
 def redirect(url: str) -> RedirectResponse:
     # 303 にすると、POST のあとブラウザが GET で移動してくれる
@@ -60,22 +55,13 @@ def login_error(request: Request, db: Session, message: str, status_code: int = 
 def login(request: Request, name: str = Form(""), password: str = Form(""),
           db: Session = Depends(get_db)):
     user = find_user_by_name(db, name.strip())
-    if user is not None and user.locked_until is not None and user.locked_until > now():
+    result = check_password_with_lock(db, user, password) if user is not None else "wrong"
+    if result == "locked":
         # 止まっている間は、正しいパスワードでも入れない
-        return login_error(request, db, "何度もまちがえたため、しばらくログインできません。時間をおいてやり直してください",
-                           status_code=429)
-    if user is None or not verify_password(password, user.password_hash):
-        if user is not None:
-            user.failed_logins += 1
-            if user.failed_logins >= MAX_FAILED_LOGINS:
-                user.locked_until = now() + timedelta(minutes=LOCK_MINUTES)
-                user.failed_logins = 0
-            db.commit()
+        return login_error(request, db, LOCKED_MESSAGE, status_code=429)
+    if result == "wrong":
         # 名前が無いのかパスワードが違うのかは教えない
         return login_error(request, db, "名前かパスワードが違います")
-    user.failed_logins = 0
-    user.locked_until = None
-    db.commit()
     login_user(request, user)
     return redirect("/")
 
@@ -96,14 +82,17 @@ def join_form(request: Request, db: Session = Depends(get_db)):
     return render(request, db, "join.html", error=None, form={})
 
 
-def join_error(request: Request, db: Session, message: str, code: str, name: str):
+def join_error(request: Request, db: Session, message: str, code: str, name: str,
+               status_code: int = 400):
     return render(request, db, "join.html", error=message,
-                  form={"code": code, "name": name}, status_code=400)
+                  form={"code": code, "name": name}, status_code=status_code)
 
 
-def get_or_create_student(db: Session, name: str, password: str) -> User | None:
-    """名前の学生を返す。いなければ登録する。
-    名前が使われていて（教員、またはパスワードが違う）参加できないときは None。
+def get_or_create_student(db: Session, name: str, password: str) -> tuple[User | None, str | None]:
+    """名前の学生を返す。いなければ登録する。(学生, 問題) を返し、問題は次のどれか。
+      None      … 問題なし
+      "taken"   … 名前が使われている（教員、またはパスワードが違う）
+      "locked"  … その学生はログインが止まっている
     同時に同じ名前で登録しようとして一意制約に当たったら、名前の確認からやり直す。"""
     user = find_user_by_name(db, name)
     if user is None:
@@ -111,13 +100,18 @@ def get_or_create_student(db: Session, name: str, password: str) -> User | None:
             user = User(name=name, role="student", password_hash=hash_password(password))
             db.add(user)
             db.commit()
-            return user
+            return user, None
+        # ※ 未習: IntegrityError と rollback — 一意制約に当たった失敗を捕まえ、DB の変更を取り消してやり直す
         except IntegrityError:
             db.rollback()
             user = find_user_by_name(db, name)
-    if user is None or user.role != "student" or not verify_password(password, user.password_hash):
-        return None
-    return user
+    if user is None or user.role != "student":
+        return None, "taken"
+    # すでにいる学生のパスワード確認も、ログインと同じ止まりの判定を通す（D-040）
+    result = check_password_with_lock(db, user, password)
+    if result == "locked":
+        return None, "locked"
+    return (user, None) if result == "ok" else (None, "taken")
 
 
 def enroll(db: Session, course_id: int, user_id: int) -> None:
@@ -148,11 +142,15 @@ def join(request: Request, code: str = Form(""), name: str = Form(""),
     if len(name) > USER_NAME_MAX:
         return join_error(request, db, f"名前は {USER_NAME_MAX} 文字までです", code, name)
     course_id = course.id
+    # 長さを確かめるのは、新しく登録する人だけ。すでにいる人は、昔の決まりで作ったパスワードかもしれず、
+    # ここで長さを理由に断ると、合っているパスワードでも入れなくなるため。
     if find_user_by_name(db, name) is None and password_too_short("student", password):
         return join_error(request, db,
                           f"パスワードは {MIN_PASSWORD_LENGTH['student']} 文字以上にしてください", code, name)
 
-    user = get_or_create_student(db, name, password)
+    user, problem = get_or_create_student(db, name, password)
+    if problem == "locked":
+        return join_error(request, db, LOCKED_MESSAGE, code, name, status_code=429)
     if user is None:
         return join_error(request, db, "その名前は使われています", code, name)
     enroll(db, course_id, user.id)
