@@ -5,22 +5,24 @@ from sqlalchemy.orm import Session
 
 from app.events import record_event
 from app.framework_defs import FRAMEWORKS
-from app.models import NOTE_TEXT_MAX, Board, Note, Team, User, now
+from app.models import NOTE_TEXT_MAX, Board, Note, Team, TeamMember, User, now
 from app.security import BoardActionDenied, can_write_board, check_note_owner, check_note_write
 
-# 作成者ごとの付箋の色（見本 v2 の 4 色。ユーザー番号で決まるので、同じ人はいつも同じ色）
-NOTE_COLORS = ("#fff4b8", "#d8f0ff", "#ffe0ec", "#dff5d8")
+# 作成者の色（見本 v2 の 4 色と薄い紫・薄いオレンジ）。班の中のメンバーの並び順で割り当てるので、6 人までは重ならない
+NOTE_COLORS = ("#fff4b8", "#d8f0ff", "#ffe0ec", "#dff5d8", "#e8dcf8", "#ffe6cc")
 
 
-def note_color(user_id: int) -> str:
-    return NOTE_COLORS[user_id % len(NOTE_COLORS)]
+def author_colors(db: Session, team_id: int) -> dict[int, str]:
+    """班のメンバーごとの色（user_id → 色）。"""
+    ids = db.scalars(select(TeamMember.user_id).where(TeamMember.team_id == team_id).order_by(TeamMember.id))
+    return {uid: NOTE_COLORS[i % len(NOTE_COLORS)] for i, uid in enumerate(ids)}
 
 
-def note_json(note: Note) -> dict:
-    """画面に送る付箋。見せてよい項目だけ。"""
+def note_json(note: Note, colors: dict[int, str]) -> dict:
+    """画面に送る付箋。見せてよい項目だけ。班を出たあとの作成者は、番号で決めた色にする。"""
     return {"id": note.id, "zone_key": note.zone_key, "x": note.x, "y": note.y,
             "text": note.text, "author_id": note.author_id, "author_name": note.author.name,
-            "color": note_color(note.author_id)}
+            "color": colors.get(note.author_id, NOTE_COLORS[note.author_id % len(NOTE_COLORS)])}
 
 
 def zone_keys(board: Board) -> list[str]:
@@ -49,20 +51,23 @@ def add_note(db: Session, board: Board, user: User, zone_key, text) -> dict:
     db.flush()
     _event(db, "note.created", board, user, note_id=note.id, zone_key=zone_key, text=text)
     db.commit()
-    return {"type": "note.created", "note": note_json(note)}
+    return {"type": "note.created", "note": note_json(note, author_colors(db, board.team_id))}
 
 
-def move_note(db: Session, board: Board, user: User, note_id, zone_key) -> dict:
+def move_note(db: Session, board: Board, user: User, note_id, zone_key) -> dict | None:
+    """動かす。同じ区画への移動なら何もせず None（記録も配信もしない）。"""
     check_note_write(db, user, board)
     note = db.get(Note, note_id) if isinstance(note_id, int) else None
     check_note_owner(user, board, note)
     if zone_key not in zone_keys(board):
         raise BoardActionDenied("invalid")
+    if zone_key == note.zone_key:
+        return None
     _event(db, "note.moved", board, user, note_id=note.id, from_zone=note.zone_key, to_zone=zone_key)
     note.zone_key = zone_key
     note.updated_at = now()
     db.commit()
-    return {"type": "note.moved", "note": note_json(note)}
+    return {"type": "note.moved", "note": note_json(note, author_colors(db, board.team_id))}
 
 
 def delete_note(db: Session, board: Board, user: User, note_id) -> dict:
@@ -75,7 +80,7 @@ def delete_note(db: Session, board: Board, user: User, note_id) -> dict:
     return {"type": "note.deleted", "id": note.id}
 
 
-def apply_action(db: Session, board: Board, user: User, data) -> dict:
+def apply_action(db: Session, board: Board, user: User, data) -> dict | None:
     """画面から来た 1 つの操作を実行し、部屋に配るメッセージを返す。"""
     kind = data.get("type") if isinstance(data, dict) else None
     if kind == "note.add":
@@ -89,5 +94,6 @@ def apply_action(db: Session, board: Board, user: User, data) -> dict:
 
 def snapshot(db: Session, board: Board, user: User) -> dict:
     """ボードの全部（つないだとき・つなぎ直したときに送る）。writable はいまの権限。"""
+    colors = author_colors(db, board.team_id)
     return {"type": "snapshot", "board_id": board.id, "writable": can_write_board(db, user, board),
-            "me": user.id, "notes": [note_json(n) for n in notes_of_board(db, board.id)]}
+            "me": user.id, "notes": [note_json(n, colors) for n in notes_of_board(db, board.id)]}

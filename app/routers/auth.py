@@ -9,7 +9,8 @@ from app.db import get_db
 from app.events import record_event
 from app.models import USER_NAME_MAX, Course, Enrollment, User
 from app.queries import find_user_by_name
-from app.security import (MIN_PASSWORD_LENGTH, check_password_with_lock, get_user_or_none,
+from app.realtime import hub
+from app.security import (MIN_PASSWORD_LENGTH, WS_NOT_LOGGED_IN, check_password_with_lock, get_user_or_none,
                           hash_password, password_too_short)
 from app.templating import courses_of, render
 
@@ -67,12 +68,14 @@ def login(request: Request, name: str = Form(""), password: str = Form(""),
 
 
 @router.post("/logout")
-def logout(request: Request, db: Session = Depends(get_db)):
-    """ログアウト。セッションの版を上げて、前の Cookie も使えなくする。"""
+async def logout(request: Request, db: Session = Depends(get_db)):
+    """ログアウト。セッションの版を上げて、前の Cookie も使えなくする。
+    つないだままのボードの WebSocket もここで切る（理由 4401）。"""
     user = get_user_or_none(request, db)
     if user is not None:
         user.session_version += 1
         db.commit()
+        await hub.close_user(user.id, WS_NOT_LOGGED_IN)
     request.session.clear()
     return redirect("/login")
 

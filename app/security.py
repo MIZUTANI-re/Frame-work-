@@ -96,6 +96,7 @@ def password_too_short(role: str, password: str) -> bool:
 
 def get_user_or_none(request: Request, db: Session) -> User | None:
     """セッション Cookie から、ログイン中のユーザーを返す（いなければ None）。
+    request には WebSocket も渡せる（どちらも Cookie のセッションを持つ）。
     Cookie に入れた「セッションの版」が DB と違えば、ログアウト済みの古い Cookie なので無効。"""
     user_id = request.session.get("user_id")
     user = db.get(User, user_id) if user_id else None
@@ -253,6 +254,20 @@ def can_write_board(db: Session, user: User, board: Board) -> bool:
     """付箋を書き換えてよいか。学生が、自分の班の「いま」のボードに対してだけ。先生は書かない（D-011）。"""
     return (user.role == "student" and can_view_board(db, user, board)
             and board.course_framework.status == "active")
+
+
+def board_audience(db: Session, board: Board) -> set[int]:
+    """いまこのボードを見てよい人の user_id（その班のいまのメンバーと担当の先生）。
+    配るたびにここで DB から出す。部屋にいる人は信じない（班の移動・ログアウトの後に届かないように）。
+    「まだ」のボードは学生を含めない（B-7）。ステップ 3 の個人ワークで「書いた本人と先生だけ」に
+    絞るときも、この関数を変える。"""
+    team = db.get(Team, board.team_id)
+    if team is None:
+        return set()
+    audience = {team.course.teacher_id}
+    if board.course_framework.status != "waiting":
+        audience |= {m.user_id for m in team.members}
+    return audience
 
 
 def board_for_viewer(db: Session, user: User, board_id: int) -> Board | None:

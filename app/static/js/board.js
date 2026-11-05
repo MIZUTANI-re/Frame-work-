@@ -10,7 +10,11 @@ function socketUrl(boardId) {
 
 const PING_MS = 30000;      // 30 秒ごとの合図（Cloudflare に切られないため）
 const RETRY_MS = 2000;      // 切れたら 2 秒後につなぎ直す
-const FINAL_CODES = [4401, 4403];  // ログイン切れ・見る権限なし。つなぎ直しても同じなので止める
+// ログイン切れ・見る権限なし。つなぎ直しても同じなので止めて、案内を出す
+const FINAL_MESSAGES = {
+  4401: "ログインし直してください。",
+  4403: "このボードは見られなくなりました。",
+};
 
 export function setupBoard(root) {
   const boardId = root.dataset.boardId;
@@ -88,8 +92,11 @@ export function setupBoard(root) {
     socket.addEventListener("message", (e) => onMessage(JSON.parse(e.data)));
     socket.addEventListener("close", (e) => {
       clearInterval(pingTimer);
-      if (FINAL_CODES.includes(e.code)) return;
-      if (status) status.hidden = false;
+      if (FINAL_MESSAGES[e.code]) {
+        if (status) { status.textContent = FINAL_MESSAGES[e.code]; status.hidden = false; }
+        return;
+      }
+      if (status) { status.textContent = "つなぎ直しています…"; status.hidden = false; }
       setTimeout(connect, RETRY_MS);  // つなぎ直すと、サーバーが全部を送り直してくる
     });
   }
@@ -106,7 +113,9 @@ export function setupBoard(root) {
       e.preventDefault();
       zone.classList.remove("over");
       const id = Number(e.dataTransfer.getData("text/plain"));
-      if (writable && notes.has(id)) send({ type: "note.move", id, zone_key: zone.dataset.zone });
+      const note = notes.get(id);
+      // 同じ区画に落としたときは送らない
+      if (writable && note && note.zone_key !== zone.dataset.zone) send({ type: "note.move", id, zone_key: zone.dataset.zone });
     });
   });
 
