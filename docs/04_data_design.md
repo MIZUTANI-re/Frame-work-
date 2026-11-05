@@ -172,8 +172,10 @@ User ─< Enrollment >─ Course ─< Team ─< TeamMember >─ User
 | `team.created` / `team.renamed` | 班を作った・名前を変えた（payload に班の名前）。班は消さない（D-030） | 1 |
 | `user.unlocked` | 教員がログインの止まりを解いた（D-040） | 1.5 |
 | `team.member_added` / `team.member_removed` | 班のメンバーが変わった | 1 |
+| `course.settings_changed` | 授業の設定を変えた（変えた項目と前後の値） | 2 |
 | `framework.selected` | 先生が授業でフレームワークを選んだ（framework_key・そのとき打っていた言葉・使う進め方） | 2 |
-| `board.created` | ボードを作った（framework_key・chosen_by） | 2 |
+| `flow.reordered` / `flow.removed` / `flow.phases_changed` | 授業の流れを並べ替えた・外した・進め方を変えた（前後の値。B-8） | 2 |
+| `board.created` | ボードを作った（framework_key・chosen_by・course_framework_id・流れの何番目か） | 2 |
 | `note.created` / `note.edited` / `note.moved` / `note.deleted` | 付箋の操作 | 2 |
 | `phase.changed` | フェーズが変わった（誰が / タイマーで） | 3 |
 | `cluster.created` / `cluster.renamed` | まとまりの操作 | 3 |
