@@ -69,7 +69,9 @@ User ─< Enrollment >─ Course ─< Team ─< TeamMember >─ User
 | course_id | → Course | |
 | framework_key | 文字列 | どの定義か。例 `brainstorm` |
 | phases | JSON | 使う進め方の key の並び。抜いたものは入らない。例 `["individual","reveal","cluster","conclusion"]`（D-023） |
-| position | 整数 | タブの順（選んだ順） |
+| position | 整数 | 授業の流れの順番（D-032） |
+| status | `waiting` / `active` / `done` | 流れの中で、まだ・今・終わり。先生の「次へ」で進む |
+| started_at / ended_at | 日時 / 空 | |
 | created_by | → User | 選んだ先生 |
 | created_at | 日時 | |
 
@@ -99,6 +101,7 @@ User ─< Enrollment >─ Course ─< Team ─< TeamMember >─ User
 | x, y | 小数（0〜1） | 位置。2 軸型ではこれが軸の値になる |
 | text | 文章 | |
 | cluster_id | → Cluster / 空 | 所属するまとまり |
+| source_note_id / source_cluster_id | 整数 / 空 | 前のボードから持ち込んだときの元（D-033） |
 | created_at / updated_at | 日時 | |
 | deleted_at | 日時 / 空 | 消しても行は残す（記録のため） |
 
@@ -119,6 +122,28 @@ User ─< Enrollment >─ Course ─< Team ─< TeamMember >─ User
 | user_id | → User | |
 | target_kind | `note` / `cluster` | |
 | target_id | 整数 | |
+
+### TeamSummary（まとめシート）※ステップ 5
+| 列 | 型 | 説明 |
+|---|---|---|
+| id | 整数 | |
+| team_id / course_id | → Team / → Course | |
+| sections | JSON | フレームワークごとの結論・票の多い意見 |
+| final_text | 文章 | 班の最終の結論 |
+| llm_slots | JSON | LLM が埋める枠。`{"summary": null, "clusters": null, "next_actions": null}`。今は全部空（D-035） |
+| image_path | 文字列 / 空 | 確定のときに作った画像の場所（保存係の中の名前） |
+| version | 整数 | 確定するたびに 1 つ上げる。前の版の行も消さない（D-031） |
+| confirmed_by / confirmed_at | → User / 日時 | |
+
+### ChatMessage（チャット）※ステップ 2
+| 列 | 型 | 説明 |
+|---|---|---|
+| id | 整数 | |
+| course_id | → Course | どの授業の準備の中の会話か |
+| user_id | 整数 / 空 | 送った人。LLM の返事なら空 |
+| role | `user` / `assistant` | `assistant` は今は「LLM はまだつながっていません」の決まった返事だけ |
+| text | 文章 | |
+| created_at | 日時 | |
 
 ### Event（記録）※ステップ 1 から
 | 列 | 型 | 説明 |
@@ -149,6 +174,10 @@ User ─< Enrollment >─ Course ─< Team ─< TeamMember >─ User
 | `cluster.created` / `cluster.renamed` | まとまりの操作 | 3 |
 | `vote.cast` / `vote.removed` | 投票 | 3 |
 | `conclusion.saved` | 結論を書いた | 3 |
+| `flow.advanced` | 先生が「次へ」を押した（どれからどれへ） | 3 |
+| `note.carried` | 前のボードから付箋を持ち込んだ | 3 |
+| `summary.confirmed` / `summary.image_saved` | まとめシートを確定した・画像を保存した | 5 |
+| `chat.posted` | チャットに送った | 2 |
 
 ## 4. DB に入れないもの
 - **フレームワークの定義**：リポジトリの `app/frameworks/*.json` に置き、Git で管理する。教員が自作する機能を付けるときに DB へ移す。
