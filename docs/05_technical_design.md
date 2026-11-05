@@ -18,6 +18,8 @@
 | ログイン | セッション Cookie + パスワードのハッシュ化（argon2） | ローカル運用には十分 | 学校の SSO |
 | 教員アカウント | コマンドで作る（`python -m app.cli create-teacher`） | 画面から誰でも教員になれる穴を作らない | 管理画面 |
 | テスト | pytest + httpx | FastAPI の定番 | — |
+| 箱（実行環境） | Docker + docker compose | PC でもクラウドでも同じ物が動く（D-017・M-1） | 同じイメージを Azure Container Apps へ |
+| 公開の入口 | Cloudflare Tunnel（Quick Tunnel） | 無料。HTTPS と URL を Cloudflare が受け持つ（D-017・D-018） | 名前付きトンネル、または Azure の入口 |
 | AI 系（LLM） | **本人が作る**（D-016）。モデルも本人が決める（D-003） | 本人の指定 | ステップ 7 |
 
 ## 2. フォルダ構成
@@ -47,6 +49,8 @@ data/              SQLite のファイル（Git に入れない）
 4. **個人ワーク中は、配る相手を選ぶ**。付箋の作成・変更は「書いた本人」と「教員」にだけ送る。ほかの学生には送らない。
 5. 公開になったら、サーバーが全員に「今のボードの全部」を送り直す。
 6. 正しい状態はいつもサーバーの DB。画面がつなぎ直したときは、全部を取り直す。
+7. 画面は 30 秒ごとに合図（ping）を送る。Cloudflare は何も流れない WebSocket を切るため（[配置・移行設計書 §7](08_deployment_design.md)）。切れたら自動でつなぎ直す。
+8. 部屋の管理と配信は `app/realtime/` の「配信係」1 か所に閉じ込める。サーバーを複数台にするときは、ここだけを Redis などに差し替える（M-7）。
 
 ## 4. タイマー（ステップ 3）
 - 個人ワークを始めるとき、終了予定時刻を `Board.phase_ends_at` に保存する。
@@ -68,10 +72,12 @@ data/              SQLite のファイル（Git に入れない）
 - Claude 側は、本人が AI をつなぎやすいようにデータを用意しておくだけ（Cluster の `made_by_kind`・`summary`、フレームワークの `meta`、記録の Event）。
 - モデルと提供元は本人が決める（D-003）。
 
-## 7. PostgreSQL への移り方（後で）
-- SQLAlchemy を使うので、接続先の URL を変えるとほぼそのまま動く。
-- SQLite だけの書き方（独自の関数など）は使わない。
-- 似た付箋を探す機能は、pgvector を入れたときに足す。
+## 7. 公開と移行
+[配置・移行設計書](08_deployment_design.md) を見る。要点は次のとおり。
+- 今は PC で Docker の箱を動かし、Cloudflare Tunnel で公開する。
+- 置き場所で変わる値（DB の場所・鍵など）は環境変数だけで変える。
+- SQLAlchemy を使い、SQLite だけの書き方はしないので、`DATABASE_URL` を変えるだけで PostgreSQL に移れる。
+- 似た付箋を探す機能（pgvector）は本人が足す（D-016）。
 
 ## 改訂履歴
 | 版 | 日付 | 内容 |

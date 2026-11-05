@@ -13,6 +13,7 @@
 | FW-05 | [技術設計書](05_technical_design.md) | 技術構成・フォルダ・同期・タイマー・安全 | 1.0 |
 | FW-06 | [フレームワーク設計書](06_framework_design.md) | 盤面の型 × 区画 × 進め方・定義ファイル・カタログ・増やす手順 | 1.0 |
 | FW-07 | [開発計画書](07_development_plan.md) | ステップ・エージェント・進め方・止まる所 | 1.0 |
+| FW-08 | [配置・移行設計書](08_deployment_design.md) | PC + Cloudflare Tunnel での公開・Azure へ移りやすくする決まり | 1.0 |
 | — | [決定ログ](decisions.md) | 決めたこと（D-番号） | 随時 |
 | — | [未決事項](open_questions.md) | まだ決めていないこと（Q-番号） | 随時 |
 | — | [タスク票](tasks/) | ステップごとの実装の指示書 | 随時 |
