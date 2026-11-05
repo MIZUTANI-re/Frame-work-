@@ -57,7 +57,15 @@ PC の中（docker compose）
 | `PORT` | 待ち受けるポート | `8000` | Azure が決める |
 | `FORWARDED_ALLOW_IPS` | プロキシヘッダーを信じる相手 | `*`（アプリのポートは PC の中にしか開けないため） | `*`（Azure の入口の裏だけで動くため） |
 
-`APP_ENV=production` のときに `SECRET_KEY` が無ければ、起動を止める（開発用の鍵のまま公開しないため）。
+`APP_ENV=production` のときに `SECRET_KEY` が無ければ、起動を止める（開発用の鍵のまま公開しないため）。`APP_ENV` が `development` / `production` 以外なら、打ちまちがいとみなして起動を止める。開発用の鍵は、起動のたびに作る乱数にする。
+
+**設定ファイルの分け方（D-038）**：箱で使う設定は `deploy.env`（`deploy.env.example` を写して作る）。手元の開発は `.env`。2 つを分けるのは、箱用の値（`COOKIE_SECURE=1` など）を手元の開発やテストが読んで壊れるのを防ぐため。テストは `.env` も環境変数も読まない。
+
+**`PORT` について**：`docker compose` で動かすときは 8000 のままにする（ポートの公開・健康診断・トンネルの行き先が 8000 で決まっているため）。変えるのは Azure に移るときだけ。
+
+**`FORWARDED_ALLOW_IPS=*` の注意**：このとき、アプリが「接続元」と思う IP（`X-Forwarded-For` の一番左）は、利用者が自分で書けるので信用できない。あとで「接続元ごとの制限」などに IP を使うときは、Cloudflare が付ける `Cf-Connecting-Ip` を使うか、トンネルの IP だけを信じる設定にする。
+
+**テーブルを作るのは Alembic だけ（D-039）**：開発の起動も、`create-teacher` も、箱の起動も、`alembic upgrade head` でテーブルを作る。`create_all` を使うのはテストだけ。2 つが同じ DB のファイルに混ざると、Alembic が「もうある」で止まるため。
 
 ## 6. 動かし方（今）
 1. PC に Docker Desktop を入れる

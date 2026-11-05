@@ -16,6 +16,8 @@
 | SQLAlchemy の ORM | ⭕ | | | [データ](02_data.md#sqlalchemy-の-orm) |
 | argon2 のハッシュ化 | ⭕ | | | [データ](02_data.md#argon2-のハッシュ化) |
 | Alembic（テーブルの変更の管理） | ⭕ | | | [データ](02_data.md#alembic) |
+| トランザクションと「同時に動くとき」 | ⭕ | | | [データ](02_data.md#トランザクションと同時に動くとき) |
+| UTCDateTime（日時をそろえる） | ⭕ | | | [データ](02_data.md#utcdatetime日時をそろえる自作の型) |
 | Docker・イメージ・docker compose | ⭕ | | | [公開](03_deploy.md#docker) |
 | 環境変数 | ⭕ | | | [公開](03_deploy.md#環境変数) |
 | Cloudflare Tunnel | ⭕ | | | [公開](03_deploy.md#cloudflare-tunnel) |

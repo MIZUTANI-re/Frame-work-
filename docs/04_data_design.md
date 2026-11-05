@@ -28,6 +28,9 @@ User ─< Enrollment >─ Course ─< Team ─< TeamMember >─ User
 | name | 文字列 | ログイン名を兼ねる。全体で重複不可 |
 | role | `teacher` / `student` | |
 | password_hash | 文字列 | argon2 のハッシュ。平文は持たない |
+| failed_logins | 整数 | 続けてまちがえた回数。成功したら 0 に戻す。足すときは DB の 1 回の更新で足す（同時に送られても数えもれないため）（D-029） |
+| locked_until | 日時 / 空 | この時刻までログインできない（5 回まちがえたら 5 分）。教員が解ける（D-040） |
+| session_version | 整数 | ログアウトで 1 つ上げる。Cookie の版と合わなければ無効。1 人に 1 つなので、スマホでログアウトするとパソコンからも出る |
 | created_at | 日時 | |
 
 ### Course（授業）
@@ -165,7 +168,8 @@ User ─< Enrollment >─ Course ─< Team ─< TeamMember >─ User
 | type | いつ | ステップ |
 |---|---|---|
 | `course.joined` | 学生が授業に参加した | 1 |
-| `team.created` / `team.renamed` / `team.deleted` | 班を作った・名前を変えた・消した（payload に班の名前） | 1 |
+| `team.created` / `team.renamed` | 班を作った・名前を変えた（payload に班の名前）。班は消さない（D-030） | 1 |
+| `user.unlocked` | 教員がログインの止まりを解いた（D-040） | 1.5 |
 | `team.member_added` / `team.member_removed` | 班のメンバーが変わった | 1 |
 | `framework.selected` | 先生が授業でフレームワークを選んだ（framework_key・そのとき打っていた言葉・使う進め方） | 2 |
 | `board.created` | ボードを作った（framework_key・chosen_by） | 2 |
