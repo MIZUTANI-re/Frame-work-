@@ -40,6 +40,7 @@ User ─< Enrollment >─ Course ─< Team ─< TeamMember >─ User
 | name | 文字列 | |
 | teacher_id | → User | 担当教員 |
 | invite_code | 文字列（6） | 重複不可 |
+| settings | JSON | 授業の設定（D-045）。例 `{"share_outputs_across_teams": false}`。設定の名前・既定値・説明は `app/course_settings.py` に 1 か所でまとめる |
 | created_at | 日時 | |
 
 ### Enrollment（授業への参加）
