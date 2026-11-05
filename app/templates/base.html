@@ -24,24 +24,34 @@
     {% endif %}
   </nav>
 
-  {# 2 列目：班の一覧（スマホでは普段はたたんでおく） #}
+  {# 2 列目：3 つの場所（D-036）。設定（準備）と授業で使う画面を混ぜない #}
   <aside class="side" id="side">
     {% if course %}
       <h2 class="side-title"><a href="/courses/{{ course.id }}">{{ course.name }}</a></h2>
-      <ul class="side-list">
-        {% for t in side_teams %}
-          <li><a class="{% if team and team.id == t.id %}active{% endif %}"
-                 href="/teams/{{ t.id }}"># {{ t.name }}</a></li>
-        {% else %}
-          <li class="muted">班はまだありません</li>
-        {% endfor %}
-      </ul>
       {% if user.role == 'teacher' %}
-        <div class="side-section">教員のみ</div>
-        <ul class="side-list">
-          <li><a href="/courses/{{ course.id }}/members">メンバー管理</a></li>
-        </ul>
+      <div class="area">
+        <div class="area-title">⚙ 準備（設定）</div>
+        <a class="{{ 'on' if active == 'settings' }}" href="/courses/{{ course.id }}">授業の設定</a>
+        <a class="{{ 'on' if active == 'members' }}" href="/courses/{{ course.id }}/members">メンバーと班</a>
+        <a class="{{ 'on' if active == 'search' }}" href="/courses/{{ course.id }}/frameworks/search">フレームワークを探す</a>
+        <a class="{{ 'on' if active == 'flow' }}" href="/courses/{{ course.id }}/flow">授業の流れ</a>
+      </div>
       {% endif %}
+      <div class="area">
+        <div class="area-title">▶ 授業中</div>
+        {% for t in side_teams %}
+          <a class="{{ 'on' if team and team.id == t.id }}" href="/teams/{{ t.id }}"># {{ t.name }}</a>
+        {% else %}
+          <span class="muted side-note">班はまだありません</span>
+        {% endfor %}
+      </div>
+      <div class="area">
+        <div class="area-title">📄 成果</div>
+        <a class="{{ 'on' if active == 'summary' }}" href="/courses/{{ course.id }}/summary">まとめシート</a>
+        {% if user.role == 'teacher' %}
+          <a class="{{ 'on' if active == 'dashboard' }}" href="/courses/{{ course.id }}/dashboard">ダッシュボード</a>
+        {% endif %}
+      </div>
     {% else %}
       <p class="muted side-empty">授業を選んでください</p>
     {% endif %}

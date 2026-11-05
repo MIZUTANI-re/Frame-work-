@@ -26,3 +26,18 @@ def error_text(key: str | None, teams: int = 0, students: int = 0) -> str | None
     if template is None:
         return None
     return template.format(teams=teams, students=students, hint=count_hint(teams, students))
+
+
+# 授業の流れの画面の通知（?msg=鍵）
+FLOW_NOTICES = {
+    "added": "授業の流れに足しました。順番と進め方は「授業の流れ」で決めます",
+    "already": "そのフレームワークはすでに流れに入っています",
+    "dealt": "全部の班に配りました",
+    "flow_empty": "流れが空です。「フレームワークを探す」で足してください",
+    "no_teams": "班がまだありません。「メンバーと班」で班を作ってください",
+    "phases_saved": "進め方を保存しました",
+}
+
+
+def flow_notice(key: str | None) -> str | None:
+    return FLOW_NOTICES.get(key) if key else None

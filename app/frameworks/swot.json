@@ -1,0 +1,34 @@
+{
+  "key": "swot",
+  "name": "SWOT 分析",
+  "aliases": ["スウォット", "SWOT分析", "強み弱み"],
+  "tags": ["分析", "現状把握", "戦略", "内部環境", "外部環境"],
+  "yomi": ["すうぉっと", "すうぉっとぶんせき", "つよみよわみ", "ぶんせき", "げんじょうはあく", "せんりゃく", "ないぶかんきょう", "がいぶかんきょう"],
+  "board_type": "zone",
+  "layout": { "columns": 2, "rows": 2 },
+  "zones": [
+    { "key": "S", "label": "強み Strengths", "hint": "内部・プラス" },
+    { "key": "W", "label": "弱み Weaknesses", "hint": "内部・マイナス" },
+    { "key": "O", "label": "機会 Opportunities", "hint": "外部・プラス" },
+    { "key": "T", "label": "脅威 Threats", "hint": "外部・マイナス" }
+  ],
+  "phases": [
+    { "key": "individual", "default_minutes": 7 },
+    { "key": "reveal" },
+    { "key": "cluster" },
+    { "key": "vote", "votes_per_person": 3 },
+    { "key": "conclusion" }
+  ],
+  "meta": {
+    "purpose": "analyze",
+    "thinking": "converge",
+    "scenes": ["class", "business_plan"],
+    "group_size": [3, 6],
+    "minutes": [20, 40],
+    "difficulty": 1,
+    "good_for": ["自社・自分の現状把握", "戦略を立てる前の整理"],
+    "pairs_with": ["brainstorm", "payoff_matrix"],
+    "description": "内部の強み・弱みと、外部の機会・脅威を 4 象限で整理する",
+    "source": "一般的な経営分析の手法"
+  }
+}

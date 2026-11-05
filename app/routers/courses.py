@@ -2,6 +2,7 @@
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from sqlalchemy.orm import Session
 
+from app.course_settings import SETTINGS, effective_settings
 from app.db import get_db
 from app.invite import generate_unique_code
 from app.messages import error_text
@@ -43,9 +44,11 @@ def create_course(request: Request, name: str = Form(""),
 @router.get("/courses/{course_id}")
 def course_home(request: Request, course: Course = Depends(require_course_member),
                 user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    """授業のホーム。学生には自分の班だけが見える。"""
+    """授業のホーム。先生には「⚙ 準備 / 授業の設定」、学生には自分の班だけが見える。"""
     my_team = team_of_student(db, course.id, user.id) if user.role == "student" else None
-    return render(request, db, "course_home.html", user=user, course=course, my_team=my_team)
+    return render(request, db, "course_home.html", user=user, course=course, my_team=my_team,
+                  active="settings", settings_defs=SETTINGS, settings=effective_settings(course.settings),
+                  saved=request.query_params.get("saved") == "1")
 
 
 @router.get("/courses/{course_id}/members")
@@ -57,7 +60,7 @@ def members_page(request: Request, error: str | None = None,
     in_team = {m.user_id for team in course.teams for m in team.members}
     unassigned = [s for s in students if s.id not in in_team]
     locked = [s for s in students if is_locked(s)]
-    return render(request, db, "members.html", user=user, course=course, students=students,
+    return render(request, db, "members.html", user=user, course=course, students=students, active="members",
                   unassigned=unassigned, locked=locked, msg=error_text(error, len(course.teams), len(students)))
 
 

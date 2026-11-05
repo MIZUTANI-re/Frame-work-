@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}フレームワークを探す - Frame-work{% endblock %}
+{% block heading %}<span class="crumb">⚙ 準備 /</span> フレームワークを探す{% endblock %}
+{% block content %}
+{% if notice %}<p class="notice">{{ notice }}</p>{% endif %}
+<p class="lead">言葉を打つたびに候補が絞られます。何も打っていないときは<b>よく使われている順</b>です。選んだものの順番や進め方は「授業の流れ」で決めます。</p>
+
+{# 候補の一覧はサーバーが埋め込み、ブラウザの JavaScript で絞る（D-022） #}
+<script type="application/json" id="fw-data">{{ candidates|tojson }}</script>
+<input class="search" id="search" autocomplete="off" value="{{ query }}" placeholder="例：ブレ、ぶれすと、分析、優先順位">
+<div class="cands" id="cands" data-course-id="{{ course.id }}"></div>
+
+<div class="chat">
+  <div class="chat-head"><span>💬 相談する（ChatGPT や Claude のような会話。あとで LLM が答えます）</span><span class="muted">送った文は保存されます</span></div>
+  <div class="chat-log" id="chat-log" data-course-id="{{ course.id }}">
+    {% for m in messages %}<div class="msg {{ m.role }}">{{ m.text }}</div>
+    {% else %}<div class="muted" id="chat-empty">例：「新しい商品のアイデアを考える授業に合うのはどれ？」</div>{% endfor %}
+  </div>
+  <div class="chat-input">
+    <textarea id="chat-text" rows="2" maxlength="2000" placeholder="授業のテーマや、迷っていることを書く（Enter で送る・Shift + Enter で改行）"></textarea>
+    <button type="button" class="primary" id="chat-send">送る</button>
+  </div>
+</div>
+<script type="module" src="/static/js/search.js"></script>
+{% endblock %}

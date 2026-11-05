@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}授業の流れ - Frame-work{% endblock %}
+{% block heading %}<span class="crumb">⚙ 準備 /</span> 授業の流れ{% endblock %}
+{% block content %}
+{% if notice %}<p class="notice">{{ notice }}</p>{% endif %}
+<p class="lead">授業で使うフレームワークを、使う順に並べます。授業中は ① から順に 1 つずつ開きます（「次へ」で進める操作はステップ 3 で作ります）。</p>
+<div class="panel">
+  {% for r in rows %}
+    {% set i = r.item %}
+    <div class="flow-row">
+      <div class="flow-no">{{ loop.index }}</div>
+      <div class="flow-body">
+        <b>{{ r.fw.name }}</b>
+        {% if i.status == 'done' %}<span class="pill done">終わり</span>{% elif i.status == 'active' %}<span class="pill now">いま</span>{% else %}<span class="pill">まだ</span>{% endif %}
+        <span class="flow-ops">
+          <form method="post" action="/courses/{{ course.id }}/flow/{{ i.id }}/move" class="inline">
+            <input type="hidden" name="direction" value="up"><button type="submit" class="ghost small" {{ 'disabled' if loop.first }}>↑</button></form>
+          <form method="post" action="/courses/{{ course.id }}/flow/{{ i.id }}/move" class="inline">
+            <input type="hidden" name="direction" value="down"><button type="submit" class="ghost small" {{ 'disabled' if loop.last }}>↓</button></form>
+          <form method="post" action="/courses/{{ course.id }}/flow/{{ i.id }}/remove" class="inline">
+            <button type="submit" class="ghost small" {{ 'disabled' if i.status != 'waiting' }}>外す</button></form>
+        </span>
+        <form method="post" action="/courses/{{ course.id }}/flow/{{ i.id }}/phases" class="phases">
+          <span>進め方：</span>
+          {% for p in r.all_phases %}
+            {% if p in locked %}
+              {# 外せない。disabled の入力は送られないので、隠し入力で一緒に送る（サーバーでも確かめている） #}
+              <label class="inline-choice"><input type="checkbox" checked disabled> {{ phase_names[p] }}</label>
+              <input type="hidden" name="phase" value="{{ p }}">
+            {% else %}
+              <label class="inline-choice"><input type="checkbox" name="phase" value="{{ p }}" {{ 'checked' if p in i.phases }} {{ 'disabled' if i.status != 'waiting' }}> {{ phase_names[p] }}</label>
+            {% endif %}
+          {% endfor %}
+          <button type="submit" class="ghost small" {{ 'disabled' if i.status != 'waiting' }}>保存</button>
+        </form>
+      </div>
+    </div>
+  {% else %}
+    <div class="empty">まだありません。「フレームワークを探す」で足してください。</div>
+  {% endfor %}
+  <p class="muted">個人ワークと公開は外せません（他の人を見ずに考える時間を守るため）。始まったもの・終わったものは外せません。</p>
+  <form method="post" action="/courses/{{ course.id }}/flow/deal">
+    <button type="submit" class="primary">全班に配る（{{ course.teams|length }} 班）</button>
+  </form>
+</div>
+{% endblock %}

@@ -1,9 +1,36 @@
 {% extends "base.html" %}
 {% block title %}{{ team.name }} - Frame-work{% endblock %}
-{% block heading %}{{ course.name }} / {{ team.name }}{% endblock %}
+{% block heading %}<span class="crumb">▶ 授業中 /</span> {{ team.name }}{% endblock %}
 {% block content %}
 {% if user.role == 'teacher' %}<p class="badge">閲覧中</p>{% endif %}
-<h2>{{ team.name }}</h2>
 <p>メンバー：{% for m in team.members %}{{ m.user.name }}{% if not loop.last %}、{% endif %}{% else %}まだいません{% endfor %}</p>
-<div class="placeholder">ボードはステップ 2 で追加します。</div>
+
+{% if items and boards %}
+  {# 授業の流れの帯（D-032）。① ブレスト → ② SWOT → ③ ペイオフ #}
+  {% set marks = {'done': '✓', 'active': '▶', 'waiting': ''} %}
+  <div class="flowbar">
+    {% for i in items %}
+      {% set b = board_of_item.get(i.id) %}
+      <span class="fl {{ i.status }} {{ 'viewing' if chosen and b and b.id == chosen.id }}">{{ marks[i.status] }} {{ '①②③④⑤⑥⑦⑧⑨'[loop.index0] if loop.index0 < 9 else loop.index }} {{ frameworks[i.framework_key].name }}</span>
+      {% if not loop.last %}<span class="arrow">→</span>{% endif %}
+    {% endfor %}
+  </div>
+
+  {# ボードのタブ（盤面はステップ 2b で作る） #}
+  <div class="tabs">
+    {% for b in boards %}
+      <a class="tab {{ 'on' if chosen and b.id == chosen.id }}" href="/teams/{{ team.id }}?board={{ b.id }}">{{ frameworks[b.framework_key].name }}</a>
+    {% endfor %}
+  </div>
+  {% if chosen %}
+    <div class="phasebar">
+      {% for p in chosen.course_framework.phases %}
+        <span class="step {{ 'now' if p == chosen.phase }}">{{ phase_names[p] }}</span>{% if not loop.last %}<span class="arrow">›</span>{% endif %}
+      {% endfor %}
+    </div>
+    <div class="placeholder">盤面はステップ 2b で作ります。（{{ frameworks[chosen.framework_key].name }}）</div>
+  {% endif %}
+{% else %}
+  <div class="placeholder">まだボードは配られていません。</div>
+{% endif %}
 {% endblock %}

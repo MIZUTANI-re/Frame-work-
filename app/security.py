@@ -187,3 +187,31 @@ def require_team_teacher(team_id: int, user: User = Depends(get_current_user),
     if user.id != team.course.teacher_id:
         raise HTTPException(status_code=403)
     return team
+
+
+# ---- 授業の流れ（ステップ 2a）の権限・決まり ----
+# 画面で押せなくしているだけでは足りないので、サーバーでも必ず確かめる（D-023）
+
+def get_flow_item_or_404(db: Session, course: Course, item_id: int):
+    """授業の流れの 1 行。その授業のものでなければ 404。"""
+    from app.models import CourseFramework
+    item = db.get(CourseFramework, item_id)
+    if item is None or item.course_id != course.id:
+        raise HTTPException(status_code=404)
+    return item
+
+
+def phases_to_save(definition: dict, requested: list[str]) -> list[str]:
+    """進め方として保存してよい並び（定義の順）を返す。
+    個人ワークと公開が入っていない、定義にない進め方がある、のときは 400（D-023）。"""
+    from app.framework_defs import LOCKED_PHASES
+    allowed = [p["key"] for p in definition["phases"]]
+    if any(p not in allowed for p in requested) or any(p not in requested for p in LOCKED_PHASES):
+        raise HTTPException(status_code=400)
+    return [p for p in allowed if p in requested]
+
+
+def require_not_started(item) -> None:
+    """まだ始まっていない（waiting）ものだけ、外したり進め方を変えたりできる。違えば 409。"""
+    if item.status != "waiting":
+        raise HTTPException(status_code=409)

@@ -11,7 +11,8 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from app.config import BASE_DIR, cookie_secure, get_secret_key, is_production
 from app.db import SessionLocal, get_db, upgrade_database
-from app.routers import auth, courses, teams
+from app import framework_defs  # noqa: F401  （定義ファイルを読む。仕様に合わなければここで起動が止まる）
+from app.routers import auth, courses, frameworks, teams
 from app.security import LoginRequired, get_user_or_none
 from app.templating import render
 
@@ -49,6 +50,7 @@ def create_app() -> FastAPI:
     app.mount("/static", StaticFiles(directory=str(BASE_DIR / "app" / "static")), name="static")
     app.include_router(auth.router)
     app.include_router(courses.router)
+    app.include_router(frameworks.router)
     app.include_router(teams.router)
 
     @app.get("/healthz")

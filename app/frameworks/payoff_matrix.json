@@ -1,0 +1,36 @@
+{
+  "key": "payoff_matrix",
+  "name": "ペイオフマトリクス",
+  "aliases": ["ペイオフ", "効果と実現性", "優先順位"],
+  "tags": ["決定", "優先順位", "選ぶ"],
+  "yomi": ["ぺいおふまとりくす", "ぺいおふ", "ゆうせんじゅんい", "こうか", "じつげんせい", "けってい", "えらぶ"],
+  "board_type": "axis",
+  "axes": {
+    "x": { "label": "実現しやすさ", "low": "難しい", "high": "易しい" },
+    "y": { "label": "効果", "low": "小さい", "high": "大きい" }
+  },
+  "quadrants": [
+    { "key": "do_now", "label": "すぐやる", "x": "high", "y": "high" },
+    { "key": "plan", "label": "計画してやる", "x": "low", "y": "high" },
+    { "key": "spare", "label": "手が空いたら", "x": "high", "y": "low" },
+    { "key": "drop", "label": "やらない", "x": "low", "y": "low" }
+  ],
+  "phases": [
+    { "key": "individual", "default_minutes": 5 },
+    { "key": "reveal" },
+    { "key": "vote", "votes_per_person": 3 },
+    { "key": "conclusion" }
+  ],
+  "meta": {
+    "purpose": "decide",
+    "thinking": "converge",
+    "scenes": ["class", "meeting", "business_plan"],
+    "group_size": [3, 6],
+    "minutes": [15, 30],
+    "difficulty": 2,
+    "good_for": ["出た案から、先にやるものを決める", "限られた時間や人手で優先順位をつける"],
+    "pairs_with": ["brainstorm", "swot"],
+    "description": "案を「効果」と「実現しやすさ」の 2 軸に置いて、やる順を決める",
+    "source": "一般的な意思決定の手法（効果 × 実現性の 2 軸）"
+  }
+}

@@ -8,6 +8,8 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.events import record_event
+from app.flow import boards_of_team, flow_items, give_boards_to_new_team
+from app.framework_defs import FRAMEWORKS, PHASE_NAMES
 from app.models import TEAM_NAME_MAX, Course, Team, TeamMember, User
 from app.queries import students_of
 from app.routers.auth import redirect
@@ -70,14 +72,24 @@ def create_team_record(db: Session, course_id: int, name: str, actor: User) -> T
     db.flush()  # id を確定させる
     record_event(db, "team.created", actor_id=actor.id, course_id=course_id,
                  team_id=team.id, name=name)
+    give_boards_to_new_team(db, team, actor)  # すでに配られた流れがあれば、この班にもボードを作る
     return team
 
 
 @router.get("/teams/{team_id}")
 def team_page(request: Request, team: Team = Depends(require_team_member),
               user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    """班のページ。ボードはステップ 2 で追加する（今は枠だけ）。"""
-    return render(request, db, "team.html", user=user, course=team.course, team=team)
+    """班のページ。上に流れの帯、その下に配られたボードのタブ。盤面はステップ 2b で作る。"""
+    items = flow_items(db, team.course_id)
+    boards = boards_of_team(db, team.id)
+    board_of_item = {b.course_framework_id: b for b in boards}
+    # ?board= で開くタブを選ぶ（この班のボードだけ。違えば今のボード）
+    chosen = next((b for b in boards if str(b.id) == request.query_params.get("board")), None)
+    if chosen is None and boards:
+        chosen = next((b for b in boards if b.course_framework.status == "active"), boards[-1])
+    return render(request, db, "team.html", user=user, course=team.course, team=team,
+                  items=items, board_of_item=board_of_item, boards=boards, chosen=chosen,
+                  frameworks=FRAMEWORKS, phase_names=PHASE_NAMES, active="team")
 
 
 @router.post("/courses/{course_id}/teams")
