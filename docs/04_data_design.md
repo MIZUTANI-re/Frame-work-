@@ -30,7 +30,7 @@ User ─< Enrollment >─ Course ─< Team ─< TeamMember >─ User
 | password_hash | 文字列 | argon2 のハッシュ。平文は持たない |
 | failed_logins | 整数 | 続けてまちがえた回数。成功したら 0 に戻す。足すときは DB の 1 回の更新で足す（同時に送られても数えもれないため）（D-029） |
 | locked_until | 日時 / 空 | この時刻までログインできない（5 回まちがえたら 5 分）。教員が解ける（D-040） |
-| session_version | 整数 | ログアウトで 1 つ上げる。Cookie の版と合わなければ無効。1 人に 1 つなので、スマホでログアウトするとパソコンからも出る |
+| session_version | 整数 | ログアウトで 1 つ上げる。Cookie の版と合わなければ無効。1 人に 1 つなので、1 台でログアウトすると、別のパソコンで開いている分も出る |
 | created_at | 日時 | |
 
 ### Course（授業）

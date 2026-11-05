@@ -110,7 +110,8 @@ mark { background: #ffe58a; padding: 0; }
 .msg.user { align-self: flex-end; background: var(--accent); color: #fff; }
 .msg.assistant { align-self: flex-start; background: #f1f1f1; color: #555; }
 .chat-input { display: flex; gap: 8px; padding: 10px 12px; border-top: 1px solid var(--border); }
-.chat-input input { flex: 1; padding: 8px; border: 1px solid var(--border); border-radius: var(--radius); font-size: .95rem; }
+.chat-input textarea { flex: 1; padding: 10px; border: 1px solid var(--border); border-radius: 12px; font-size: .95rem; font-family: inherit; resize: vertical; }
+.chat-input { align-items: flex-end; }
 
 /* 授業の流れ */
 .flow-row { display: flex; gap: 12px; align-items: flex-start; padding: 12px 0; border-bottom: 1px solid #eee; }
@@ -304,9 +305,9 @@ function viewSearch() {
   return `<p class="lead">言葉を打つたびに候補が絞られます。何も打っていないときは<b>よく使われている順</b>です。選んだものの順番や進め方は「授業の流れ」で決めます。</p>
     <input class="search" placeholder="例：ブレ、ぶれすと、分析、優先順位" value="${esc(q)}">
     <div class="cands">${rows}</div>
-    <div class="chat"><div class="chat-head"><span>💬 相談する（あとで LLM が答えます）</span><span class="muted">送った文は保存されます</span></div>
+    <div class="chat"><div class="chat-head"><span>💬 相談する（ChatGPT や Claude のような会話。あとで LLM が答えます）</span><span class="muted">送った文は保存されます</span></div>
       <div class="chat-log" id="chat-log">${log}</div>
-      <div class="chat-input"><input id="chat-text" placeholder="授業のテーマや、迷っていることを書く"><button class="primary" id="chat-send">送る</button></div></div>`;
+      <div class="chat-input"><textarea id="chat-text" rows="2" placeholder="授業のテーマや、迷っていることを書く（Enter で送る・Shift + Enter で改行）"></textarea><button class="primary" id="chat-send">送る</button></div></div>`;
 }
 
 function viewFlow() {
@@ -470,7 +471,7 @@ function sendChat() {
   S.chat.push({ role: "user", text }, { role: "assistant", text: "（LLM はまだつながっていません。あとでここに答えが出ます。送った文は保存しました）" });
   render(); const log = document.getElementById("chat-log"); log.scrollTop = log.scrollHeight;
 }
-document.addEventListener("keydown", e => { if (e.target.id === "chat-text" && e.key === "Enter" && !e.isComposing) sendChat(); });
+document.addEventListener("keydown", e => { if (e.target.id === "chat-text" && e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); sendChat(); } });
 document.addEventListener("change", e => {
   const d = e.target.dataset;
   if (d.phase) { const [k, ph] = d.phase.split(":"); const x = S.flow.find(y => y.key === k); const all = fw(k).phases.map(p => p.key); x.phases = all.filter(p => p === ph ? e.target.checked : x.phases.includes(p)); render(); }
