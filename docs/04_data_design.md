@@ -10,6 +10,8 @@
 ## 1. 全体のつながり
 ```
 User ─< Enrollment >─ Course ─< Team ─< TeamMember >─ User
+                       │          │
+                       └─< CourseFramework ─< Board   （授業で選んだものが、班ごとのボードになる）
                                   │
                                   └─< Board ─< Note >─ Cluster
                                         │       │
@@ -56,14 +58,29 @@ User ─< Enrollment >─ Course ─< Team ─< TeamMember >─ User
 | 列 | 型 | 説明 |
 |---|---|---|
 | team_id | → Team | |
+| course_id | → Course | 班の授業（「1 人 1 班」を DB で守るために持つ） |
 | user_id | → User | |
-1 つの授業の中で、学生が入る班は 1 つだけ（アプリ側で確かめる）。
+（course_id, user_id）の組は重複不可。1 つの授業の中で、学生が入る班は 1 つだけ。ボタンの 2 度押しで 2 つの班に入らないよう、アプリだけでなく DB で守る（D-026）。
+
+### CourseFramework（授業で選んだフレームワーク）※ステップ 2
+| 列 | 型 | 説明 |
+|---|---|---|
+| id | 整数 | |
+| course_id | → Course | |
+| framework_key | 文字列 | どの定義か。例 `brainstorm` |
+| phases | JSON | 使う進め方の key の並び。抜いたものは入らない。例 `["individual","reveal","cluster","conclusion"]`（D-023） |
+| position | 整数 | タブの順（選んだ順） |
+| created_by | → User | 選んだ先生 |
+| created_at | 日時 | |
+
+「よく使われている順」（D-022）は、この表の行を `framework_key` ごとに数えて作る。
 
 ### Board（ボード）※ステップ 2
 | 列 | 型 | 説明 |
 |---|---|---|
 | id | 整数 | |
 | team_id | → Team | |
+| course_framework_id | → CourseFramework | どの「授業で選んだもの」から配られたか（D-021） |
 | framework_key | 文字列 | どの定義から作ったか。例 `swot` |
 | chosen_by | `teacher` / `student` | 誰が選んだか。今は `teacher` だけ（D-008） |
 | created_by | → User | |
@@ -108,18 +125,24 @@ User ─< Enrollment >─ Course ─< Team ─< TeamMember >─ User
 |---|---|---|
 | id | 整数 | |
 | at | 日時 | |
-| actor_id | → User / 空 | 誰が（タイマーなどサーバーなら空） |
+| actor_id | 整数 / 空 | 誰が（タイマーなどサーバーなら空） |
 | course_id / team_id / board_id | 整数 / 空 | どこで |
 | type | 文字列 | 何を。下の表 |
-| payload | JSON | 細かい中身 |
+| payload | JSON | 細かい中身。班の名前など、あとで読んで分かるための情報も入れる |
 
-追記だけ。書き換え・削除はしない（NFR-06）。
+追記だけ。書き換え・削除はしない（NFR-06）。Event の列はどれも外部キーにしない。班などが消えても記録だけは残すため（D-025）。
+
+## 2.1 日時の持ち方
+- 日時はすべて UTC で持つ。SQLite と PostgreSQL で同じように扱えるよう、共通の型（`UTCDateTime`）を 1 つ作って全部の列で使う。読み出したときは必ず「UTC のタイムゾーン付き」になる（D-027）。
+- 画面に出すときだけ、日本時間に直す。
 
 ## 3. 記録の種類
 | type | いつ | ステップ |
 |---|---|---|
 | `course.joined` | 学生が授業に参加した | 1 |
+| `team.created` / `team.renamed` / `team.deleted` | 班を作った・名前を変えた・消した（payload に班の名前） | 1 |
 | `team.member_added` / `team.member_removed` | 班のメンバーが変わった | 1 |
+| `framework.selected` | 先生が授業でフレームワークを選んだ（framework_key・そのとき打っていた言葉・使う進め方） | 2 |
 | `board.created` | ボードを作った（framework_key・chosen_by） | 2 |
 | `note.created` / `note.edited` / `note.moved` / `note.deleted` | 付箋の操作 | 2 |
 | `phase.changed` | フェーズが変わった（誰が / タイマーで） | 3 |
@@ -134,3 +157,4 @@ User ─< Enrollment >─ Course ─< Team ─< TeamMember >─ User
 | 版 | 日付 | 内容 |
 |---|---|---|
 | 1.0 | 2026-11-05 | 概要設計 v0.2 からデータの部分を分けて作成。列・記録の種類を追加 |
+| 1.1 | 2026-11-05 | CourseFramework を追加。Board に course_framework_id、記録に framework.selected（D-021〜D-023） |

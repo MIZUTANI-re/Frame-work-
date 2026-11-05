@@ -31,6 +31,8 @@ app/
   models.py        テーブルの定義
   security.py      パスワード・ログイン中のユーザー・権限チェック
   invite.py        招待コードの生成
+  events.py        記録（Event）を 1 行足す共通の関数
+  templating.py    画面の共通部分（レールと班一覧に出す情報を集める）
   cli.py           create-teacher コマンド
   routers/         URL ごとの処理（auth / courses / teams / boards / ws）
   realtime/        WebSocket の部屋の管理と配信（ステップ 2）

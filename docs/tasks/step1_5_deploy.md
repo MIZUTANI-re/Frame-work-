@@ -33,7 +33,13 @@
    - `alembic.ini` と `migrations/`。今のテーブル（User・Course・Enrollment・Team・TeamMember・Event）を作る最初の版を 1 つ
    - `APP_ENV=production` のときは、起動時の `create_all` をやめ、Alembic だけでテーブルを作る。`development` とテストは今のまま `create_all` でよい
    - SQLite だけの書き方は使わない（M-3）
-9. **README**：「公開する（PC + Cloudflare Tunnel）」の節を足す。配置・移行設計書 §6 の手順と、§7 の注意（PC を点けている間だけ・URL が毎回変わる・バックアップ）を短く
+9. **README**：「公開する（PC + Cloudflare Tunnel）」の節を足す。配置・移行設計書 §6 の手順と、§7 の注意（PC を点けている間だけ・URL が毎回変わる・バックアップ）を短く。環境変数の一覧と、Python 3.12 以上が要ることも書く
+10. **公開に向けた守り**（ステップ 1 のレビューの指摘 3・4・5・11・12・13）
+    - DB のフォルダは `DATABASE_URL` のファイルの場所から作る。import した時点では作らず、起動のときに作る（非 root の箱でも落ちない）
+    - `APP_ENV=production` のときは `/docs`・`/openapi.json` を出さない
+    - パスワードの最低の長さ：教員 10 文字・学生 6 文字（案。Q18）。`create-teacher` と `/join` の両方で確かめる
+    - ログインの総当たり対策：同じ名前で 5 回続けてまちがえたら、その名前は 5 分ログインできない（案。Q18）。回数と時刻は DB（User の列）に持つ。メモリに持たない（M-6）
+    - ログアウトしたら、前の Cookie を使えなくする：User に「セッションの版」の列を持たせ、Cookie に版を入れ、ログアウトで版を上げる
 
 ## 作らないもの
 - PostgreSQL のドライバー・Azure 用の設定ファイル（移るときに足す）
@@ -48,5 +54,9 @@
 - [ ] `COOKIE_SECURE=1` のとき、ログイン後の `Set-Cookie` に `Secure` が付く（テスト）
 - [ ] 空の SQLite に `alembic upgrade head` をかけると、モデルと同じテーブルができる（テスト）
 - [ ] `docker compose down` → `up` しても、`data/` のデータが残る
+- [ ] `APP_ENV=production` で `/docs` が 404（テスト）
+- [ ] 教員 9 文字・学生 5 文字のパスワードは作れない（テスト）
+- [ ] 5 回まちがえると 5 分ログインできない。正しいパスワードでも止まっている（テスト。時刻は差し替えて確かめる）
+- [ ] ログアウトしたあと、前の Cookie では開けない（テスト）
 - [ ] `pytest` が全部通る
 - [ ] トンネルの動作（外から URL で開けるか）は、この開発環境では確かめない。本人が PC で確かめる手順を README に書く
