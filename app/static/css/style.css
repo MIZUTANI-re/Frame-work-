@@ -95,6 +95,7 @@ label.inline-choice input { padding: 0; }
 .arrow { color: var(--muted); }
 .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 12px; }
 .tab { padding: 8px 14px; border-radius: var(--radius) var(--radius) 0 0; text-decoration: none; color: var(--text); }
+.tab.waiting { color: #aaa; cursor: default; }
 .tab.on { background: var(--accent); color: #fff; font-weight: bold; }
 .phasebar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
 .step { padding: 3px 10px; border-radius: 999px; background: #f3f3f3; color: var(--muted); font-size: .82rem; }

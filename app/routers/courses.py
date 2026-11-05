@@ -2,7 +2,6 @@
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from sqlalchemy.orm import Session
 
-from app.course_settings import SETTINGS, effective_settings
 from app.db import get_db
 from app.invite import generate_unique_code
 from app.messages import error_text
@@ -44,11 +43,11 @@ def create_course(request: Request, name: str = Form(""),
 @router.get("/courses/{course_id}")
 def course_home(request: Request, course: Course = Depends(require_course_member),
                 user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    """授業のホーム。先生には「⚙ 準備 / 授業の設定」、学生には自分の班だけが見える。"""
-    my_team = team_of_student(db, course.id, user.id) if user.role == "student" else None
-    return render(request, db, "course_home.html", user=user, course=course, my_team=my_team,
-                  active="settings", settings_defs=SETTINGS, settings=effective_settings(course.settings),
-                  saved=request.query_params.get("saved") == "1")
+    """授業のホーム。先生は「⚙ 準備 / 授業の設定」へ移す。学生には自分の班だけが見える。"""
+    if user.role == "teacher":
+        return redirect(f"/courses/{course.id}/settings")
+    my_team = team_of_student(db, course.id, user.id)
+    return render(request, db, "course_home.html", user=user, course=course, my_team=my_team)
 
 
 @router.get("/courses/{course_id}/members")

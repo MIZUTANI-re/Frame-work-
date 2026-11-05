@@ -39,22 +39,40 @@ def renumber(items: list[CourseFramework]) -> None:
         item.position = n
 
 
-def move(db: Session, course_id: int, item: CourseFramework, direction: str) -> bool:
-    """1 つ上（up）か下（down）へ。入れ替える相手も始まっていないときだけ動かす。"""
-    items = flow_items(db, course_id)
-    i = items.index(next(x for x in items if x.id == item.id))
+def can_move(items: list[CourseFramework], i: int, direction: str) -> bool:
+    """items の i 番目を 1 つ上（up）か下（down）へ動かせるか。入れ替える相手も始まっていないときだけ。"""
     j = i - 1 if direction == "up" else i + 1
-    if not 0 <= j < len(items) or items[i].status != "waiting" or items[j].status != "waiting":
+    return 0 <= j < len(items) and items[i].status == "waiting" and items[j].status == "waiting"
+
+
+def move(db: Session, course: Course, item: CourseFramework, direction: str, actor: User) -> bool:
+    """1 つ上（up）か下（down）へ。動かせなければ False（呼び出し側が 409 にする）。"""
+    items = flow_items(db, course.id)
+    i = next(n for n, x in enumerate(items) if x.id == item.id)
+    if not can_move(items, i, direction):
         return False
+    before = [x.framework_key for x in items]
+    j = i - 1 if direction == "up" else i + 1
     items[i], items[j] = items[j], items[i]
     renumber(items)
+    record_event(db, "flow.reordered", actor_id=actor.id, course_id=course.id,
+                 before=before, after=[x.framework_key for x in items])
     return True
 
 
-def remove(db: Session, course_id: int, item: CourseFramework) -> None:
+def remove(db: Session, course: Course, item: CourseFramework, actor: User) -> None:
+    record_event(db, "flow.removed", actor_id=actor.id, course_id=course.id,
+                 framework_key=item.framework_key, position=item.position, phases=item.phases)
     db.delete(item)
     db.flush()
-    renumber(flow_items(db, course_id))
+    renumber(flow_items(db, course.id))
+
+
+def change_phases(db: Session, item: CourseFramework, phases: list[str], actor: User) -> None:
+    if phases != item.phases:
+        record_event(db, "flow.phases_changed", actor_id=actor.id, course_id=item.course_id,
+                     framework_key=item.framework_key, before=item.phases, after=phases)
+        item.phases = phases
 
 
 def _make_board(db: Session, team: Team, item: CourseFramework, actor: User) -> Board:
@@ -63,7 +81,8 @@ def _make_board(db: Session, team: Team, item: CourseFramework, actor: User) -> 
     db.add(board)
     db.flush()
     record_event(db, "board.created", actor_id=actor.id, course_id=team.course_id, team_id=team.id,
-                 board_id=board.id, framework_key=item.framework_key, chosen_by="teacher")
+                 board_id=board.id, framework_key=item.framework_key, chosen_by="teacher",
+                 course_framework_id=item.id, position=item.position)
     return board
 
 

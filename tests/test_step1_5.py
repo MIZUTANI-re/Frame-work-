@@ -136,7 +136,7 @@ def test_4回まちがえても成功すれば数え直す(make_client, teacher)
 
 def test_ログアウトしたあと前のCookieでは開けない(make_client, teacher_client, course):
     old_cookies = dict(teacher_client.cookies)
-    assert teacher_client.get(f"/courses/{course.id}").status_code == 200
+    assert teacher_client.get(f"/courses/{course.id}/settings").status_code == 200
     teacher_client.post("/logout")
     replay = make_client()
     for k, v in old_cookies.items():

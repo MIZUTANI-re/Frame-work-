@@ -19,7 +19,12 @@
   {# ボードのタブ（盤面はステップ 2b で作る） #}
   <div class="tabs">
     {% for b in boards %}
-      <a class="tab {{ 'on' if chosen and b.id == chosen.id }}" href="/teams/{{ team.id }}?board={{ b.id }}">{{ frameworks[b.framework_key].name }}</a>
+      {% if is_student and b.course_framework.status == 'waiting' %}
+        {# 学生には「まだ」のタブは見えるが押せない（B-7） #}
+        <span class="tab waiting">{{ frameworks[b.framework_key].name }}</span>
+      {% else %}
+        <a class="tab {{ 'on' if chosen and b.id == chosen.id }}" href="/teams/{{ team.id }}?board={{ b.id }}">{{ frameworks[b.framework_key].name }}</a>
+      {% endif %}
     {% endfor %}
   </div>
   {% if chosen %}

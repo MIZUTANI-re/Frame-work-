@@ -18,6 +18,9 @@ PURPOSE_LABELS = {"ideate": "発想", "analyze": "分析", "organize": "整理",
 THINKING_LABELS = {"diverge": "発散", "converge": "収束"}
 META_KEYS = ("purpose", "thinking", "scenes", "group_size", "minutes", "difficulty",
              "good_for", "pairs_with", "description", "source")
+# カタログの順（回数が同じときの並び。フレームワーク設計書 §5）
+CATALOG_ORDER = ("brainstorm", "swot", "payoff_matrix")
+
 KEY_PATTERN = re.compile(r"^[a-z_]+$")
 
 
@@ -93,9 +96,6 @@ def load_frameworks(directory: Path = FRAMEWORKS_DIR) -> dict[str, dict]:
     order = [k for k in CATALOG_ORDER if k in loaded] + [k for k in loaded if k not in CATALOG_ORDER]
     return {k: loaded[k] for k in order}
 
-
-# カタログの順（回数が同じときの並び。フレームワーク設計書 §5）
-CATALOG_ORDER = ("brainstorm", "swot", "payoff_matrix")
 
 # 起動のときに 1 回読む。仕様に合わなければ、ここで import が失敗して起動が止まる
 FRAMEWORKS: dict[str, dict] = load_frameworks()

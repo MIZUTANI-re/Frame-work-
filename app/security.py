@@ -14,7 +14,8 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.events import record_event
-from app.models import Course, Enrollment, Team, TeamMember, User, now
+from app.framework_defs import LOCKED_PHASES
+from app.models import Board, Course, CourseFramework, Enrollment, Team, TeamMember, User, now
 
 # パスワードの最低の長さ（D-029）
 MIN_PASSWORD_LENGTH = {"teacher": 10, "student": 6}
@@ -194,7 +195,6 @@ def require_team_teacher(team_id: int, user: User = Depends(get_current_user),
 
 def get_flow_item_or_404(db: Session, course: Course, item_id: int):
     """授業の流れの 1 行。その授業のものでなければ 404。"""
-    from app.models import CourseFramework
     item = db.get(CourseFramework, item_id)
     if item is None or item.course_id != course.id:
         raise HTTPException(status_code=404)
@@ -204,11 +204,33 @@ def get_flow_item_or_404(db: Session, course: Course, item_id: int):
 def phases_to_save(definition: dict, requested: list[str]) -> list[str]:
     """進め方として保存してよい並び（定義の順）を返す。
     個人ワークと公開が入っていない、定義にない進め方がある、のときは 400（D-023）。"""
-    from app.framework_defs import LOCKED_PHASES
     allowed = [p["key"] for p in definition["phases"]]
     if any(p not in allowed for p in requested) or any(p not in requested for p in LOCKED_PHASES):
         raise HTTPException(status_code=400)
     return [p for p in allowed if p in requested]
+
+
+def has_boards(db: Session, item) -> bool:
+    """配られて、ボードがすでにある行か。"""
+    return db.scalar(select(Board.id).where(Board.course_framework_id == item.id).limit(1)) is not None
+
+
+def require_removable(db: Session, item) -> None:
+    """流れから外せるのは、まだ始まっていなくて、ボードも無い（配る前の）行だけ。違えば 409（B-6）。
+    ボードは消さない（D-031）。"""
+    require_not_started(item)
+    if has_boards(db, item):
+        raise HTTPException(status_code=409)
+
+
+def visible_board_for(user: User, board: Board | None, fallback: Board | None) -> Board | None:
+    """班のページで開いてよいボード。学生は「いま」と「終わり」だけ。違えば fallback（今のボード。B-7）。
+    先生は全部見られる。"""
+    if board is None:
+        return fallback
+    if user.role == "student" and board.course_framework.status == "waiting":
+        return fallback
+    return board
 
 
 def require_not_started(item) -> None:

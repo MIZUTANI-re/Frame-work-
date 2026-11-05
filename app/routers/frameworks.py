@@ -5,6 +5,7 @@ from urllib.parse import quote
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app import flow
@@ -16,7 +17,8 @@ from app.messages import flow_notice
 from app.models import ChatMessage, Course, User
 from app.routers.auth import redirect
 from app.security import (get_current_user, get_flow_item_or_404, phases_to_save,
-                          require_course_member, require_course_teacher, require_not_started)
+                          has_boards, require_course_member, require_course_teacher,
+                          require_not_started, require_removable)
 from app.templating import render
 
 router = APIRouter()
@@ -44,7 +46,16 @@ async def save_settings(request: Request, user: User = Depends(get_current_user)
         record_event(db, "course.settings_changed", actor_id=user.id, course_id=course.id,
                      changes=changes)
         db.commit()
-    return redirect(f"/courses/{course.id}?saved=1")
+    return redirect(f"/courses/{course.id}/settings?saved=1")
+
+
+@router.get("/courses/{course_id}/settings")
+def settings_page(request: Request, user: User = Depends(get_current_user),
+                  course: Course = Depends(require_course_teacher), db: Session = Depends(get_db)):
+    """⚙ 準備 / 授業の設定。担当の先生だけ（学生は 403）。"""
+    return render(request, db, "settings.html", user=user, course=course, active="settings",
+                  settings_defs=SETTINGS, settings=effective_settings(course.settings),
+                  saved=request.query_params.get("saved") == "1")
 
 
 # ---- S-07a フレームワークを探す ----
@@ -80,7 +91,11 @@ def add_to_flow(framework_key: str = Form(""), q: str = Form(""),
     if framework_key not in FRAMEWORKS:
         raise HTTPException(status_code=404)
     added = flow.add_to_flow(db, course, framework_key, q.strip()[:100], user)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:  # 2 度押しなどで同時に足された。戻して「すでに入っています」にする
+        db.rollback()
+        added = None
     return redirect(f"/courses/{course.id}/frameworks/search?q={quote(q.strip()[:100])}"
                     f"&msg={'added' if added else 'already'}")
 
@@ -108,9 +123,12 @@ def post_chat(text: str = Form(""), user: User = Depends(get_current_user),
 @router.get("/courses/{course_id}/flow")
 def flow_page(request: Request, user: User = Depends(get_current_user),
               course: Course = Depends(require_course_teacher), db: Session = Depends(get_db)):
+    items = flow.flow_items(db, course.id)
     rows = [{"item": i, "fw": FRAMEWORKS[i.framework_key],
-             "all_phases": [p["key"] for p in FRAMEWORKS[i.framework_key]["phases"]]}
-            for i in flow.flow_items(db, course.id)]
+             "all_phases": [p["key"] for p in FRAMEWORKS[i.framework_key]["phases"]],
+             "can_up": flow.can_move(items, n, "up"), "can_down": flow.can_move(items, n, "down"),
+             "can_remove": i.status == "waiting" and not has_boards(db, i)}
+            for n, i in enumerate(items)]
     return render(request, db, "flow.html", user=user, course=course, active="flow", rows=rows,
                   phase_names=PHASE_NAMES, locked=LOCKED_PHASES,
                   notice=flow_notice(request.query_params.get("msg")))
@@ -121,35 +139,37 @@ def flow_url(course_id: int, msg: str | None = None) -> str:
 
 
 @router.post("/courses/{course_id}/flow/{item_id}/move")
-def move_item(item_id: int, direction: str = Form(""), course: Course = Depends(require_course_teacher),
+def move_item(item_id: int, direction: str = Form(""), user: User = Depends(get_current_user),
+              course: Course = Depends(require_course_teacher),
               db: Session = Depends(get_db)):
     if direction not in ("up", "down"):
         raise HTTPException(status_code=400)
     item = get_flow_item_or_404(db, course, item_id)
-    flow.move(db, course.id, item, direction)
+    if not flow.move(db, course, item, direction, user):
+        raise HTTPException(status_code=409)  # 始まったものは動かせない・端は動かせない
     db.commit()
     return redirect(flow_url(course.id))
 
 
 @router.post("/courses/{course_id}/flow/{item_id}/remove")
-def remove_item(item_id: int, course: Course = Depends(require_course_teacher),
-                db: Session = Depends(get_db)):
-    """まだ始まっていないものだけ、流れから外せる。"""
+def remove_item(item_id: int, user: User = Depends(get_current_user),
+                course: Course = Depends(require_course_teacher), db: Session = Depends(get_db)):
+    """まだ始まっていなくて、配られてもいない（ボードが無い）ものだけ、流れから外せる（B-6）。"""
     item = get_flow_item_or_404(db, course, item_id)
-    require_not_started(item)
-    flow.remove(db, course.id, item)
+    require_removable(db, item)
+    flow.remove(db, course, item, user)
     db.commit()
     return redirect(flow_url(course.id))
 
 
 @router.post("/courses/{course_id}/flow/{item_id}/phases")
-async def save_phases(request: Request, item_id: int, course: Course = Depends(require_course_teacher),
-                      db: Session = Depends(get_db)):
+async def save_phases(request: Request, item_id: int, user: User = Depends(get_current_user),
+                      course: Course = Depends(require_course_teacher), db: Session = Depends(get_db)):
     """使う進め方を保存する。個人ワークと公開が入っていなければ 400（画面を通さなくても外せない）。"""
     item = get_flow_item_or_404(db, course, item_id)
     require_not_started(item)
     requested = (await request.form()).getlist("phase")
-    item.phases = phases_to_save(FRAMEWORKS[item.framework_key], requested)
+    flow.change_phases(db, item, phases_to_save(FRAMEWORKS[item.framework_key], requested), user)
     db.commit()
     return redirect(flow_url(course.id, "phases_saved"))
 

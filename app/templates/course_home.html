@@ -1,37 +1,10 @@
 {% extends "base.html" %}
 {% block title %}{{ course.name }} - Frame-work{% endblock %}
-{% block heading %}{% if user.role == 'teacher' %}<span class="crumb">⚙ 準備 /</span> 授業の設定{% else %}{{ course.name }}{% endif %}{% endblock %}
+{% block heading %}{{ course.name }}{% endblock %}
 {% block content %}
-{% if user.role == 'teacher' %}
-  <p class="lead">授業そのものの設定です。授業中に触る画面とは分けています。</p>
-  {% if saved %}<p class="notice">保存しました</p>{% endif %}
-  <section class="panel"><h3>授業の名前</h3>{{ course.name }}</section>
-  <section class="panel">
-    <h3>招待コード</h3>
-    <span class="code">{{ course.invite_code }}</span>
-    <form method="post" action="/courses/{{ course.id }}/invite-code/regenerate" class="inline">
-      <button type="submit" class="ghost">再発行</button>
-    </form>
-  </section>
-  <section class="panel">
-    <h3>授業の設定</h3>
-    <form method="post" action="/courses/{{ course.id }}/settings" class="stack">
-      {% for name, d in settings_defs.items() %}
-        <fieldset class="setting">
-          <legend>{{ d.label }}</legend>
-          <label class="inline-choice"><input type="radio" name="{{ name }}" value="true" {{ 'checked' if settings[name] }}> {{ d.true_label }}</label>
-          <label class="inline-choice"><input type="radio" name="{{ name }}" value="false" {{ 'checked' if not settings[name] }}> {{ d.false_label }}</label>
-          <p class="muted">{{ d.description }}</p>
-        </fieldset>
-      {% endfor %}
-      <div><button type="submit">保存する</button></div>
-    </form>
-  </section>
+{% if my_team %}
+  <p>あなたの班：<a href="/teams/{{ my_team.id }}">{{ my_team.name }}</a></p>
 {% else %}
-  {% if my_team %}
-    <p>あなたの班：<a href="/teams/{{ my_team.id }}">{{ my_team.name }}</a></p>
-  {% else %}
-    <p class="muted">班はまだ決まっていません。先生が班を分けるまで待ってください。</p>
-  {% endif %}
+  <p class="muted">班はまだ決まっていません。先生が班を分けるまで待ってください。</p>
 {% endif %}
 {% endblock %}

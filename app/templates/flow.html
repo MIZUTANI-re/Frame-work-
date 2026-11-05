@@ -14,11 +14,11 @@
         {% if i.status == 'done' %}<span class="pill done">終わり</span>{% elif i.status == 'active' %}<span class="pill now">いま</span>{% else %}<span class="pill">まだ</span>{% endif %}
         <span class="flow-ops">
           <form method="post" action="/courses/{{ course.id }}/flow/{{ i.id }}/move" class="inline">
-            <input type="hidden" name="direction" value="up"><button type="submit" class="ghost small" {{ 'disabled' if loop.first }}>↑</button></form>
+            <input type="hidden" name="direction" value="up"><button type="submit" class="ghost small" {{ 'disabled' if not r.can_up }}>↑</button></form>
           <form method="post" action="/courses/{{ course.id }}/flow/{{ i.id }}/move" class="inline">
-            <input type="hidden" name="direction" value="down"><button type="submit" class="ghost small" {{ 'disabled' if loop.last }}>↓</button></form>
+            <input type="hidden" name="direction" value="down"><button type="submit" class="ghost small" {{ 'disabled' if not r.can_down }}>↓</button></form>
           <form method="post" action="/courses/{{ course.id }}/flow/{{ i.id }}/remove" class="inline">
-            <button type="submit" class="ghost small" {{ 'disabled' if i.status != 'waiting' }}>外す</button></form>
+            <button type="submit" class="ghost small" {{ 'disabled' if not r.can_remove }}>外す</button></form>
         </span>
         <form method="post" action="/courses/{{ course.id }}/flow/{{ i.id }}/phases" class="phases">
           <span>進め方：</span>
@@ -38,7 +38,7 @@
   {% else %}
     <div class="empty">まだありません。「フレームワークを探す」で足してください。</div>
   {% endfor %}
-  <p class="muted">個人ワークと公開は外せません（他の人を見ずに考える時間を守るため）。始まったもの・終わったものは外せません。</p>
+  <p class="muted">個人ワークと公開は外せません（他の人を見ずに考える時間を守るため）。始まったもの・終わったもの・班に配ったものは外せません。</p>
   <form method="post" action="/courses/{{ course.id }}/flow/deal">
     <button type="submit" class="primary">全班に配る（{{ course.teams|length }} 班）</button>
   </form>

@@ -13,7 +13,7 @@ from app.framework_defs import FRAMEWORKS, PHASE_NAMES
 from app.models import TEAM_NAME_MAX, Course, Team, TeamMember, User
 from app.queries import students_of
 from app.routers.auth import redirect
-from app.security import (get_current_user, is_enrolled, require_course_teacher,
+from app.security import (get_current_user, visible_board_for, is_enrolled, require_course_teacher,
                           require_team_member, require_team_teacher, team_of_student)
 from app.templating import render
 
@@ -84,12 +84,21 @@ def team_page(request: Request, team: Team = Depends(require_team_member),
     boards = boards_of_team(db, team.id)
     board_of_item = {b.course_framework_id: b for b in boards}
     # ?board= で開くタブを選ぶ（この班のボードだけ。違えば今のボード）
-    chosen = next((b for b in boards if str(b.id) == request.query_params.get("board")), None)
-    if chosen is None and boards:
-        chosen = next((b for b in boards if b.course_framework.status == "active"), boards[-1])
+    # 学生が開けるのは「いま」と「終わり」だけ。「まだ」が来たら今のボード（B-7）
+    wanted = next((b for b in boards if str(b.id) == request.query_params.get("board")), None)
+    current = None
+    if boards:
+        current = next((b for b in boards if b.course_framework.status == "active"), None)
+        if current is None and user.role == "student":
+            current = next((b for b in reversed(boards) if b.course_framework.status == "done"), None)
+        if current is None and user.role == "teacher":
+            current = boards[-1]
+    chosen = visible_board_for(user, wanted, current) if (wanted or current) else None
+    if user.role == "student":  # 学生の帯には、この班にボードがある行だけ出す
+        items = [i for i in items if i.id in board_of_item]
     return render(request, db, "team.html", user=user, course=team.course, team=team,
                   items=items, board_of_item=board_of_item, boards=boards, chosen=chosen,
-                  frameworks=FRAMEWORKS, phase_names=PHASE_NAMES, active="team")
+                  frameworks=FRAMEWORKS, is_student=user.role == "student", phase_names=PHASE_NAMES, active="team")
 
 
 @router.post("/courses/{course_id}/teams")

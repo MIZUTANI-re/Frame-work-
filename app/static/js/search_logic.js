@@ -8,7 +8,8 @@ export function normChar(ch) {
   if (c.length === 1 && k >= 0x30a1 && k <= 0x30f6) c = String.fromCharCode(k - 0x60);
   return c;
 }
-export const norm = (s) => Array.from(s).map(normChar).join("");
+// 先に文字列全体を NFKC にかける（半角カナの「ﾌﾞ」は全体でないと「ブ」にならない）。前後の空白（全角も）は落とす
+export const norm = (s) => Array.from(s.normalize("NFKC").trim()).map(normChar).join("");
 
 export const esc = (s) =>
   String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));

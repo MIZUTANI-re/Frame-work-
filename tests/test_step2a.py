@@ -48,7 +48,10 @@ def test_学生の2列目に準備が出ず準備のURLは開けない(teacher_c
         assert a.get(f"/courses/{course.id}{path}").status_code in (403, 404)
     assert a.post(f"/courses/{course.id}/flow/deal").status_code in (403, 404)
     assert a.get(f"/courses/{course.id}/dashboard").status_code in (403, 404)
-    assert "⚙ 準備" in teacher_client.get(f"/courses/{course.id}").text
+    assert a.get(f"/courses/{course.id}/settings").status_code == 403
+    r = teacher_client.get(f"/courses/{course.id}")
+    assert r.status_code == 303 and r.headers["location"] == f"/courses/{course.id}/settings"
+    assert "⚙ 準備" in teacher_client.get(f"/courses/{course.id}/settings").text
 
 
 # ---- 定義ファイル ----
@@ -114,7 +117,7 @@ def test_空のときはよく使われている順に並ぶ(teacher_client, db,
 def run_search(data, q):
     """search_logic.js の search() を node で動かし、出た key の並びを返す。"""
     if shutil.which("node") is None:
-        pytest.skip("node が無い")
+        pytest.skip("node が無いので探す画面の JS は確かめていない")
     script = ("import {search} from %r; const [d,q]=JSON.parse(process.argv[1]);"
               "console.log(JSON.stringify(search(d,q).map(f=>f.key)))") % (
         (ROOT / "app/static/js/search_logic.js").as_uri(),)
@@ -132,7 +135,8 @@ def candidates():
             for k, f in FRAMEWORKS.items()]
 
 
-@pytest.mark.parametrize("q, key", [("ぶれ", "brainstorm"), ("ゆうせん", "payoff_matrix"),
+@pytest.mark.parametrize("q, key", [("ﾌﾞﾚ", "brainstorm"), ("ﾍﾟｲｵﾌ", "payoff_matrix"), ("ブレ ", "brainstorm"),
+                                    ("ブレ\u3000", "brainstorm"), ("ぶれ", "brainstorm"), ("ゆうせん", "payoff_matrix"),
                                     ("ＳＷＯＴ", "swot"), ("swot", "swot"), ("すうぉっと", "swot")])
 def test_文字をそろえて探せる(candidates, q, key):
     found = run_search(candidates, q)
@@ -306,14 +310,14 @@ def test_他の授業の流れの行は操作できない(teacher_client, db, co
 # ---- 授業の設定 ----
 
 def test_授業の設定を切り替えると保存されeventが残る(teacher_client, db, course):
-    page = teacher_client.get(f"/courses/{course.id}").text
+    page = teacher_client.get(f"/courses/{course.id}/settings").text
     assert "成果（まとめシート）を全班で共有する" in page
     assert 'value="false" checked' in page  # 既定は「しない」
     r = teacher_client.post(f"/courses/{course.id}/settings", data={"share_outputs_across_teams": "true"})
     assert r.status_code == 303
     db.expire_all()
     assert db.get(Course, course.id).settings == {"share_outputs_across_teams": True}
-    assert 'value="true" checked' in teacher_client.get(f"/courses/{course.id}").text
+    assert 'value="true" checked' in teacher_client.get(f"/courses/{course.id}/settings").text
     ev = events(db, "course.settings_changed")
     assert len(ev) == 1
     assert ev[0].payload["changes"]["share_outputs_across_teams"] == {"old": False, "new": True}
@@ -348,3 +352,92 @@ def test_版0002を流したDBとモデルが一致する(tmp_path, monkeypatch)
             r[0] for r in conn.exec_driver_sql("SELECT name FROM sqlite_master WHERE type='table'"))
         assert conn.exec_driver_sql("SELECT settings FROM courses").scalar() == "{}"
         assert compare_metadata(MigrationContext.configure(conn), Base.metadata) == []
+
+
+# ---- レビューの修正 ----
+
+def test_配ったものは外せず409でボードも残る(teacher_client, make_client, course, db):
+    setup_flow(teacher_client, make_client, course, db)
+    teacher_client.post(f"/courses/{course.id}/flow/deal")
+    swot = items(db, course)[1]
+    assert swot.status == "waiting"  # 「まだ」でも、ボードがあれば外せない（B-6）
+    assert teacher_client.post(f"/courses/{course.id}/flow/{swot.id}/remove").status_code == 409
+    db.expire_all()
+    assert len(list(db.scalars(select(Board)))) == 6 and len(items(db, course)) == 3
+    html = teacher_client.get(f"/courses/{course.id}/flow").text
+    assert html.count("disabled>外す") == 3  # 画面の「外す」も押せない
+
+
+def test_学生は_まだ_のボードを開けない(teacher_client, make_client, course, db):
+    clients, t1, t2 = setup_flow(teacher_client, make_client, course, db)
+    teacher_client.post(f"/courses/{course.id}/flow/deal")
+    waiting = list(db.scalars(select(Board).where(Board.team_id == t1.id).order_by(Board.id)))[1]
+    url = f"/teams/{t1.id}?board={waiting.id}"
+    html = clients["学生A"].get(url).text
+    assert "盤面はステップ 2b で作ります。（ブレインストーミング）" in html  # 今のボードが開く
+    assert html.count('<a class="tab') == 1 and html.count('class="tab waiting"') == 2  # 見えるが押せない
+    # 先生は「まだ」も開ける
+    assert "盤面はステップ 2b で作ります。（SWOT 分析）" in teacher_client.get(url).text
+
+
+def test_学生の帯には配ったものだけ出て先生には全部出る(teacher_client, make_client, course, db):
+    clients, t1, t2 = make_two_teams(teacher_client, make_client, course, db)
+    for k in ("brainstorm", "swot"):
+        add(teacher_client, course, k)
+    teacher_client.post(f"/courses/{course.id}/flow/deal")
+    add(teacher_client, course, "payoff_matrix")  # 配ったあとに足した（配っていない）
+    student = clients["学生A"].get(f"/teams/{t1.id}").text
+    assert student.count('class="fl ') == 2 and "ペイオフマトリクス" not in student
+    assert teacher_client.get(f"/teams/{t1.id}").text.count('class="fl ') == 3
+
+
+def test_流れの操作が記録に残る(teacher_client, make_client, course, db):
+    for k in ("brainstorm", "swot", "payoff_matrix"):
+        add(teacher_client, course, k)
+    swot = items(db, course)[1]
+    teacher_client.post(f"/courses/{course.id}/flow/{swot.id}/move", data={"direction": "up"})
+    ev = events(db, "flow.reordered")
+    assert ev[0].payload == {"before": ["brainstorm", "swot", "payoff_matrix"],
+                             "after": ["swot", "brainstorm", "payoff_matrix"]}
+    teacher_client.post(f"/courses/{course.id}/flow/{swot.id}/phases",
+                        data={"phase": ["individual", "reveal", "conclusion"]})
+    ev = events(db, "flow.phases_changed")
+    assert ev[0].payload["before"] == ["individual", "reveal", "cluster", "vote", "conclusion"]
+    assert ev[0].payload["after"] == ["individual", "reveal", "conclusion"]
+    pay = items(db, course)[2]
+    teacher_client.post(f"/courses/{course.id}/flow/{pay.id}/remove")
+    ev = events(db, "flow.removed")
+    assert ev[0].payload["framework_key"] == "payoff_matrix" and ev[0].payload["position"] == 3
+
+
+def test_board_createdにflowの番号が入る(teacher_client, make_client, course, db):
+    setup_flow(teacher_client, make_client, course, db)
+    teacher_client.post(f"/courses/{course.id}/flow/deal")
+    ev = events(db, "board.created")
+    it = {i.framework_key: i for i in items(db, course)}
+    for e in ev:
+        assert e.payload["course_framework_id"] == it[e.payload["framework_key"]].id
+        assert e.payload["position"] == it[e.payload["framework_key"]].position
+
+
+def test_足す操作が重なって失敗しても500にならない(teacher_client, db, course, monkeypatch):
+    from app import flow as flow_mod
+    add(teacher_client, course, "swot")
+    # 「すでに入っているか」の確認をすり抜けた 2 度押しを作る（DB の一意制約で止まる）
+    monkeypatch.setattr(flow_mod, "flow_items", lambda db_, cid: [])
+    r = add(teacher_client, course, "swot")
+    assert r.status_code == 303 and "msg=already" in r.headers["location"]
+    assert len(items(db, course)) == 1
+
+
+def test_動かせない並べ替えは409(teacher_client, make_client, course, db):
+    setup_flow(teacher_client, make_client, course, db)
+    teacher_client.post(f"/courses/{course.id}/flow/deal")
+    first, second, third = items(db, course)
+    url = lambda i: f"/courses/{course.id}/flow/{i.id}/move"
+    assert teacher_client.post(url(first), data={"direction": "down"}).status_code == 409  # ① は動かせない
+    assert teacher_client.post(url(second), data={"direction": "up"}).status_code == 409   # ② は ↑ できない
+    assert teacher_client.post(url(third), data={"direction": "down"}).status_code == 409  # 端
+    assert teacher_client.post(url(second), data={"direction": "down"}).status_code == 303  # ②③ は入れ替えられる
+    html = teacher_client.get(f"/courses/{course.id}/flow").text
+    assert "disabled" in html

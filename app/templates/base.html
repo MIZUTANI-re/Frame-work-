@@ -31,7 +31,7 @@
       {% if user.role == 'teacher' %}
       <div class="area">
         <div class="area-title">⚙ 準備（設定）</div>
-        <a class="{{ 'on' if active == 'settings' }}" href="/courses/{{ course.id }}">授業の設定</a>
+        <a class="{{ 'on' if active == 'settings' }}" href="/courses/{{ course.id }}/settings">授業の設定</a>
         <a class="{{ 'on' if active == 'members' }}" href="/courses/{{ course.id }}/members">メンバーと班</a>
         <a class="{{ 'on' if active == 'search' }}" href="/courses/{{ course.id }}/frameworks/search">フレームワークを探す</a>
         <a class="{{ 'on' if active == 'flow' }}" href="/courses/{{ course.id }}/flow">授業の流れ</a>

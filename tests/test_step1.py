@@ -179,7 +179,7 @@ def test_ログイン前は保護された画面からログインへ移る(make
 
 
 def test_ログアウトするとセッションが消える(teacher_client, course):
-    assert teacher_client.get(f"/courses/{course.id}").status_code == 200
+    assert teacher_client.get(f"/courses/{course.id}/settings").status_code == 200
     teacher_client.post("/logout")
     assert teacher_client.get(f"/courses/{course.id}").status_code == 303
 
