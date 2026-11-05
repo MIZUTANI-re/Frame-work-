@@ -13,6 +13,7 @@
 | 404 と 403 の使い分け | ⭕ | | | [Web の基本](01_web_basics.md#404-と-403-の使い分け) |
 | Jinja2 テンプレート | ⭕ | | | [Web の基本](01_web_basics.md#jinja2-テンプレート) |
 | ES Modules | ⭕ | | | [Web の基本](01_web_basics.md#es-modules) |
+| WebSocket（ステップ 2b の中心） | ⭕ | | | [Web の基本](01_web_basics.md#websocket) |
 | SQLAlchemy の ORM | ⭕ | | | [データ](02_data.md#sqlalchemy-の-orm) |
 | argon2 のハッシュ化 | ⭕ | | | [データ](02_data.md#argon2-のハッシュ化) |
 | Alembic（テーブルの変更の管理） | ⭕ | | | [データ](02_data.md#alembic) |
