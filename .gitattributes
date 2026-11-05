@@ -1,0 +1,4 @@
+# Windows のバッチは CRLF、Mac・Linux のシェルは LF に固定する
+*.bat text eol=crlf
+*.command text eol=lf
+*.sh text eol=lf

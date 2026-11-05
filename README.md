@@ -22,11 +22,31 @@
 - パソコンのブラウザ（Chrome・Edge）で使う前提です。スマホは考えていません。
 
 ## 別のパソコンに移して動かす（はじめての人向け）
-用意するもの：Python 3.12 以上（3.13 で確かめ済み）。あれば Node.js（探す画面のテストに使う。無くてもアプリは動く）。
+用意するもの：**Python 3.12 以上**（3.13 で確かめ済み）だけ。https://www.python.org/downloads/ から入れる。Windows では、入れるときに「Add python.exe to PATH」に印を付ける。
 
+### いちばん簡単：ダブルクリックで動かす
+- **Windows**：フォルダの中の `start-windows.bat` をダブルクリック。
+- **Mac**：`start-mac.command` をダブルクリック（Linux は `sh start-mac.command`）。
+
+自動でやること：仮想環境とライブラリの準備（はじめてだけ 1〜2 分）→ 設定ファイルと鍵 → 見本のデータ → 起動 → ブラウザでログイン画面を開く。止めるときは、開いた黒い画面で Ctrl+C。2 回目からは同じファイルをダブルクリックするだけ（データは `data/app.db` に残る）。
+
+見本のデータ（はじめての起動で自動で入る）：
+| 誰 | 名前 | パスワード |
+|---|---|---|
+| 先生 | 先生A | teacherpass123 |
+| 学生 | 学生A〜学生F | student123 |
+
+授業「プロジェクト演習（見本）」に 6 人が参加し、2 つの班に分かれ、ブレスト → SWOT の流れが配られた状態から始まる。2 つのブラウザ（または片方をシークレットウィンドウ）で同じ班の学生としてログインすると、付箋が同時に出るのを試せる。
+
+**Windows で止められたとき**
+- 「Windows によって PC が保護されました」と出たら：「詳細情報」→「実行」。
+- それでも動かないとき：zip を右クリック →「プロパティ」→ 下の「許可する」に印 → もう一度展開してから実行。
+
+### 手で準備する（中身を知りたい人・続きを作る人向け）
 **Windows（PowerShell）**
 ```powershell
 cd Frame-work
+$env:PYTHONUTF8 = "1"             # 日本語のファイルを UTF-8 で読ませる（Windows の既定は Shift_JIS 系）
 py -3.13 -m venv .venv            # 3.12 なら py -3.12
 .venv\Scripts\Activate.ps1        # 止められたら：Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
 pip install -r requirements-dev.txt

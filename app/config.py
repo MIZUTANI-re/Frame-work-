@@ -48,7 +48,7 @@ def cookie_secure() -> bool:
 
 
 def database_url() -> str:
-    return _get("DATABASE_URL", f"sqlite:///{BASE_DIR / 'data' / 'app.db'}")
+    return _get("DATABASE_URL", f"sqlite:///{(BASE_DIR / 'data' / 'app.db').as_posix()}")  # Windows でも / 区切り
 
 
 def get_secret_key() -> str:

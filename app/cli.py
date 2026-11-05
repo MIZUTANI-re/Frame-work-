@@ -1,6 +1,6 @@
 """コマンド。教員アカウントはここから作る（画面から教員になれる穴を作らないため）。
 
-使い方: python -m app.cli create-teacher --name 山田
+使い方: python -m app.cli create-teacher --name 先生A
 """
 import argparse
 import getpass
