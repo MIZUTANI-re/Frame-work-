@@ -18,7 +18,7 @@
 | ログイン | セッション Cookie + パスワードのハッシュ化（argon2） | ローカル運用には十分 | 学校の SSO |
 | 教員アカウント | コマンドで作る（`python -m app.cli create-teacher`） | 画面から誰でも教員になれる穴を作らない | 管理画面 |
 | テスト | pytest + httpx | FastAPI の定番 | — |
-| LLM | **未決**（呼び出し口だけ 1 か所に作る） | 本人の指定（D-003） | ステップ 7 で決める |
+| AI 系（LLM） | **本人が作る**（D-016）。モデルも本人が決める（D-003） | 本人の指定 | ステップ 7 |
 
 ## 2. フォルダ構成
 ```
@@ -33,7 +33,7 @@ app/
   routers/         URL ごとの処理（auth / courses / teams / boards / ws）
   realtime/        WebSocket の部屋の管理と配信（ステップ 2）
   frameworks/      フレームワークの定義 JSON と読み込み（ステップ 2）
-  llm/             LLM の呼び出し口（ステップ 7。今は空）
+  llm/             AI 系（ステップ 7。本人が作る）
   templates/       画面の HTML
   static/          CSS・JavaScript
 tests/
@@ -63,9 +63,10 @@ data/              SQLite のファイル（Git に入れない）
 | 見せない | 権限のないデータは HTML にも JSON にも WebSocket にも入れない |
 | 設定 | `SECRET_KEY` は環境変数か `.env`。`.env` と `data/` は Git に入れない |
 
-## 6. LLM の呼び出し口（ステップ 7）
-- `app/llm/` に「似た付箋をまとめる」「要約する」「フレームワークを推薦する」の 3 つの入口だけを決めておく。
-- モデルと提供元はステップ 7 で決める（D-003）。それまでは中身を作らない。
+## 6. AI 系（ステップ 7・本人が作る。D-016）
+- 「似た付箋をまとめる」「要約する」「フレームワークを推薦する」は本人が `app/llm/` に作る。Claude は作らない。
+- Claude 側は、本人が AI をつなぎやすいようにデータを用意しておくだけ（Cluster の `made_by_kind`・`summary`、フレームワークの `meta`、記録の Event）。
+- モデルと提供元は本人が決める（D-003）。
 
 ## 7. PostgreSQL への移り方（後で）
 - SQLAlchemy を使うので、接続先の URL を変えるとほぼそのまま動く。
