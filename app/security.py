@@ -1,0 +1,116 @@
+"""パスワード・ログイン中のユーザー・権限チェック。
+権限のチェックはすべてここにまとめ、各ルートから使う。
+
+404 と 403 の使い分け:
+- 404: 存在を知られたくないもの（他の班・担当外の授業）
+- 403: 存在は知っていてよいが操作できないもの（学生がメンバー管理を開く）
+"""
+from fastapi import Depends, HTTPException, Request
+from pwdlib import PasswordHash
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from app.db import get_db
+from app.models import Course, Enrollment, Team, TeamMember, User
+
+# ※ 未習: argon2 のハッシュ化 — パスワードを元に戻せない文字列に変えて保存する方法
+_hasher = PasswordHash.recommended()
+
+
+def hash_password(password: str) -> str:
+    return _hasher.hash(password)
+
+
+def verify_password(password: str, password_hash: str) -> bool:
+    return _hasher.verify(password, password_hash)
+
+
+class LoginRequired(Exception):
+    """ログインしていない。main.py で /login への移動に変える。"""
+
+
+def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
+    """セッション Cookie から、ログイン中のユーザーを返す。いなければ LoginRequired。"""
+    user_id = request.session.get("user_id")
+    user = db.get(User, user_id) if user_id else None
+    if user is None:
+        raise LoginRequired()
+    return user
+
+
+def require_teacher(user: User = Depends(get_current_user)) -> User:
+    """教員だけ通す。"""
+    if user.role != "teacher":
+        raise HTTPException(status_code=403)
+    return user
+
+
+# ---- 権限の判定（ルートの外からも使える普通の関数） ----
+
+def is_enrolled(db: Session, course_id: int, user_id: int) -> bool:
+    found = db.scalar(select(Enrollment.id).where(
+        Enrollment.course_id == course_id, Enrollment.user_id == user_id))
+    return found is not None
+
+
+def team_of_student(db: Session, course_id: int, user_id: int) -> Team | None:
+    """授業の中で、その学生が入っている班（いなければ None）。"""
+    return db.scalar(
+        select(Team).join(TeamMember, TeamMember.team_id == Team.id)
+        .where(Team.course_id == course_id, TeamMember.user_id == user_id))
+
+
+def _get_course_or_404(db: Session, course_id: int) -> Course:
+    course = db.get(Course, course_id)
+    if course is None:
+        raise HTTPException(status_code=404)
+    return course
+
+
+# ---- ルートで使う権限チェック ----
+
+# ※ 未習: 404 と 403 の使い分け — 存在を隠したいものは 404、存在は見えてよいが操作できないものは 403
+def require_course_member(course_id: int, user: User = Depends(get_current_user),
+                          db: Session = Depends(get_db)) -> Course:
+    """授業のホームを見てよい人（担当教員と参加した学生）。それ以外は 404。"""
+    course = _get_course_or_404(db, course_id)
+    if user.role == "teacher" and course.teacher_id == user.id:
+        return course
+    if user.role == "student" and is_enrolled(db, course_id, user.id):
+        return course
+    raise HTTPException(status_code=404)
+
+
+def require_course_teacher(course_id: int, user: User = Depends(get_current_user),
+                           db: Session = Depends(get_db)) -> Course:
+    """メンバー管理・コード再発行ができる人（担当教員だけ）。
+    参加済みの学生は 403、それ以外（担当外の教員・未参加の学生）は 404。"""
+    course = require_course_member(course_id, user, db)  # ここで 404 が決まる
+    if user.id != course.teacher_id:
+        raise HTTPException(status_code=403)
+    return course
+
+
+def require_team_member(team_id: int, user: User = Depends(get_current_user),
+                        db: Session = Depends(get_db)) -> Team:
+    """班のページを見てよい人（担当教員とその班の学生）。それ以外は 404。"""
+    team = db.get(Team, team_id)
+    if team is None:
+        raise HTTPException(status_code=404)
+    if user.role == "teacher" and team.course.teacher_id == user.id:
+        return team
+    if user.role == "student":
+        mine = team_of_student(db, team.course_id, user.id)
+        if mine is not None and mine.id == team.id:
+            return team
+    raise HTTPException(status_code=404)
+
+
+def require_team_teacher(team_id: int, user: User = Depends(get_current_user),
+                         db: Session = Depends(get_db)) -> Team:
+    """班の編集（名前変更・削除・メンバー操作）ができる人（担当教員だけ）。
+    その班の学生は 403、それ以外は 404。"""
+    team = require_team_member(team_id, user, db)  # ここで 404 が決まる
+    if user.id != team.course.teacher_id:
+        raise HTTPException(status_code=403)
+    return team
