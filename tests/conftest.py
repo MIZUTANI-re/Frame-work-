@@ -4,7 +4,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import sessionmaker
 
 from app.cli import create_teacher
-from app.db import Base, get_db, make_engine
+from app.db import Base, make_engine
 from app.main import app
 from app import models  # noqa: F401  （テーブル定義を読み込む）
 
@@ -25,11 +25,8 @@ def db(session_factory):
 @pytest.fixture
 def make_client(session_factory):
     """ブラウザ 1 台ぶんのクライアントを作る関数。台ごとに Cookie が別になる。"""
-    def override():
-        with session_factory() as session:
-            yield session
-
-    app.dependency_overrides[get_db] = override
+    original = app.state.session_factory
+    app.state.session_factory = session_factory  # 一時ファイルの DB を使わせる
     clients = []
 
     def make() -> TestClient:
@@ -41,7 +38,10 @@ def make_client(session_factory):
     yield make
     for c in clients:
         c.close()
-    app.dependency_overrides.clear()
+    app.state.session_factory = original
+
+
+TEACHER_PW = "pass-a-0123456"
 
 
 def login(client, name, password):
@@ -54,13 +54,13 @@ def join(client, code, name, password):
 
 @pytest.fixture
 def teacher(db):
-    return create_teacher(db, "先生A", "pass-a")
+    return create_teacher(db, "先生A", TEACHER_PW)
 
 
 @pytest.fixture
 def teacher_client(make_client, teacher):
     client = make_client()
-    assert login(client, "先生A", "pass-a").status_code == 303
+    assert login(client, "先生A", TEACHER_PW).status_code == 303
     return client
 
 

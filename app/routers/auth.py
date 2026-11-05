@@ -1,16 +1,25 @@
 """ログイン・ログアウト・授業への参加（F-02・F-04）。"""
+from datetime import timedelta
+
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import RedirectResponse
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.events import record_event
-from app.models import Course, Enrollment, User
-from app.security import get_current_user, hash_password, verify_password
+from app.models import USER_NAME_MAX, Course, Enrollment, User, now
+from app.queries import find_user_by_name
+from app.security import (MIN_PASSWORD_LENGTH, get_user_or_none, hash_password,
+                          password_too_short, verify_password)
 from app.templating import courses_of, render
 
 router = APIRouter()
+
+# ログインの総当たり対策（案。Q18）：5 回続けてまちがえたら 5 分止める
+MAX_FAILED_LOGINS = 5
+LOCK_MINUTES = 5
 
 
 def redirect(url: str) -> RedirectResponse:
@@ -19,17 +28,17 @@ def redirect(url: str) -> RedirectResponse:
 
 
 def login_user(request: Request, user: User) -> None:
-    """ログイン状態にする。前のセッションの中身は捨てる。"""
+    """ログイン状態にする。前のセッションの中身は捨てる。版を入れておき、ログアウトで古い Cookie を無効にする。"""
     request.session.clear()
     request.session["user_id"] = user.id
+    request.session["sv"] = user.session_version
 
 
 # ※ 未習: FastAPI のルーティング — @router.get / @router.post で「この URL に来たらこの関数」を決める
 @router.get("/")
 def index(request: Request, db: Session = Depends(get_db)):
     """ログイン後の最初の行き先を決める。"""
-    user_id = request.session.get("user_id")
-    user = db.get(User, user_id) if user_id else None
+    user = get_user_or_none(request, db)
     if user is None:
         return redirect("/login")
     courses = courses_of(db, user)
@@ -43,20 +52,41 @@ def login_form(request: Request, db: Session = Depends(get_db)):
     return render(request, db, "login.html", error=None)
 
 
+def login_error(request: Request, db: Session, message: str, status_code: int = 400):
+    return render(request, db, "login.html", error=message, status_code=status_code)
+
+
 @router.post("/login")
 def login(request: Request, name: str = Form(""), password: str = Form(""),
           db: Session = Depends(get_db)):
-    user = db.scalar(select(User).where(User.name == name.strip()))
+    user = find_user_by_name(db, name.strip())
+    if user is not None and user.locked_until is not None and user.locked_until > now():
+        # 止まっている間は、正しいパスワードでも入れない
+        return login_error(request, db, "何度もまちがえたため、しばらくログインできません。時間をおいてやり直してください",
+                           status_code=429)
     if user is None or not verify_password(password, user.password_hash):
+        if user is not None:
+            user.failed_logins += 1
+            if user.failed_logins >= MAX_FAILED_LOGINS:
+                user.locked_until = now() + timedelta(minutes=LOCK_MINUTES)
+                user.failed_logins = 0
+            db.commit()
         # 名前が無いのかパスワードが違うのかは教えない
-        return render(request, db, "login.html", error="名前かパスワードが違います",
-                      status_code=400)
+        return login_error(request, db, "名前かパスワードが違います")
+    user.failed_logins = 0
+    user.locked_until = None
+    db.commit()
     login_user(request, user)
     return redirect("/")
 
 
 @router.post("/logout")
-def logout(request: Request):
+def logout(request: Request, db: Session = Depends(get_db)):
+    """ログアウト。セッションの版を上げて、前の Cookie も使えなくする。"""
+    user = get_user_or_none(request, db)
+    if user is not None:
+        user.session_version += 1
+        db.commit()
     request.session.clear()
     return redirect("/login")
 
@@ -71,6 +101,39 @@ def join_error(request: Request, db: Session, message: str, code: str, name: str
                   form={"code": code, "name": name}, status_code=400)
 
 
+def get_or_create_student(db: Session, name: str, password: str) -> User | None:
+    """名前の学生を返す。いなければ登録する。
+    名前が使われていて（教員、またはパスワードが違う）参加できないときは None。
+    同時に同じ名前で登録しようとして一意制約に当たったら、名前の確認からやり直す。"""
+    user = find_user_by_name(db, name)
+    if user is None:
+        try:
+            user = User(name=name, role="student", password_hash=hash_password(password))
+            db.add(user)
+            db.commit()
+            return user
+        except IntegrityError:
+            db.rollback()
+            user = find_user_by_name(db, name)
+    if user is None or user.role != "student" or not verify_password(password, user.password_hash):
+        return None
+    return user
+
+
+def enroll(db: Session, course_id: int, user_id: int) -> None:
+    """授業に参加させる。すでに参加済み（同時の参加を含む）なら何もしない。"""
+    already = db.scalar(select(Enrollment.id).where(
+        Enrollment.course_id == course_id, Enrollment.user_id == user_id))
+    if already is not None:
+        return
+    try:
+        db.add(Enrollment(course_id=course_id, user_id=user_id))
+        record_event(db, "course.joined", actor_id=user_id, course_id=course_id)
+        db.commit()
+    except IntegrityError:
+        db.rollback()  # 同時に参加済みになった。記録も取り消す（記録は相手が残している）
+
+
 @router.post("/join")
 def join(request: Request, code: str = Form(""), name: str = Form(""),
          password: str = Form(""), db: Session = Depends(get_db)):
@@ -82,21 +145,17 @@ def join(request: Request, code: str = Form(""), name: str = Form(""),
         return join_error(request, db, "招待コードが正しくありません", code, name)
     if not name or not password:
         return join_error(request, db, "名前とパスワードを入力してください", code, name)
+    if len(name) > USER_NAME_MAX:
+        return join_error(request, db, f"名前は {USER_NAME_MAX} 文字までです", code, name)
+    course_id = course.id
+    if find_user_by_name(db, name) is None and password_too_short("student", password):
+        return join_error(request, db,
+                          f"パスワードは {MIN_PASSWORD_LENGTH['student']} 文字以上にしてください", code, name)
 
-    user = db.scalar(select(User).where(User.name == name))
+    user = get_or_create_student(db, name, password)
     if user is None:
-        user = User(name=name, role="student", password_hash=hash_password(password))
-        db.add(user)
-        db.flush()  # id を確定させる
-    elif user.role != "student" or not verify_password(password, user.password_hash):
         return join_error(request, db, "その名前は使われています", code, name)
-
-    already = db.scalar(select(Enrollment.id).where(
-        Enrollment.course_id == course.id, Enrollment.user_id == user.id))
-    if already is None:
-        db.add(Enrollment(course_id=course.id, user_id=user.id))
-        record_event(db, "course.joined", actor_id=user.id, course_id=course.id)
-    db.commit()
+    enroll(db, course_id, user.id)
 
     login_user(request, user)
-    return redirect(f"/courses/{course.id}")
+    return redirect(f"/courses/{course_id}")

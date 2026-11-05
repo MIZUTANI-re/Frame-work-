@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} - Frame-work{% endblock %}
+{% block heading %}{{ title }}{% endblock %}
+{% block content %}
+<h2>{{ title }}</h2>
+<p>{{ message }}</p>
+<p><a href="/">最初のページへ戻る</a></p>
+{% endblock %}
+{% block plain %}
+<h1>{{ title }}</h1>
+<p>{{ message }}</p>
+<p><a href="/login">ログインへ</a></p>
+{% endblock %}

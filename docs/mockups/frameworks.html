@@ -1,0 +1,429 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>フレームワークの見本</title>
+<style>
+/* 色はアプリ本体（app/static/css/style.css）と同じ */
+:root {
+  --rail-bg: #464775; --rail-text: #fff; --rail-active: #6264a7;
+  --side-bg: #f0f0f0; --main-bg: #fff; --text: #242424; --muted: #707070;
+  --accent: #5b5fc7; --accent-soft: #e8e9f8; --border: #d6d6d6; --radius: 6px; --gap: 16px;
+  --warn-bg: #fff8e1; --warn-border: #f2c94c;
+}
+* { box-sizing: border-box; }
+body { margin: 0; font-family: system-ui, "Hiragino Sans", "Noto Sans JP", sans-serif; color: var(--text); background: var(--main-bg); }
+.shell { display: flex; min-height: 100vh; }
+.rail { width: 64px; background: var(--rail-bg); display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 12px 0; flex-shrink: 0; }
+.rail-item { width: 44px; height: 44px; border-radius: var(--radius); background: rgba(255,255,255,.12); color: var(--rail-text); display: flex; align-items: center; justify-content: center; font-weight: bold; }
+.rail-item.active { background: var(--rail-active); }
+.side { width: 220px; background: var(--side-bg); padding: var(--gap); flex-shrink: 0; }
+.side h2 { font-size: 1rem; margin: 0 0 12px; }
+.side ul { list-style: none; margin: 0 0 var(--gap); padding: 0; }
+.side li { padding: 6px 8px; border-radius: var(--radius); }
+.side li.active { background: #e0e0e0; font-weight: bold; }
+.side .section { font-size: .8rem; color: var(--muted); margin: var(--gap) 0 4px; }
+.main { flex: 1; min-width: 0; }
+.mock-banner { background: var(--warn-bg); border-bottom: 1px solid var(--warn-border); padding: 6px var(--gap); font-size: .85rem; }
+.topbar { display: flex; align-items: center; gap: 12px; padding: 10px var(--gap); border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+.topbar .title { flex: 1; font-weight: bold; }
+.seg { display: inline-flex; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+.seg button { border: none; background: #fff; padding: 6px 12px; cursor: pointer; font-size: .9rem; }
+.seg button.on { background: var(--accent); color: #fff; }
+.tabs { display: flex; gap: 4px; padding: 0 var(--gap); border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+.tab { padding: 10px 14px; cursor: pointer; border-bottom: 3px solid transparent; font-size: .95rem; }
+.tab.on { border-bottom-color: var(--accent); font-weight: bold; }
+.tab.teacher-only::before { content: "教員 "; font-size: .7rem; color: var(--accent); }
+.content { padding: var(--gap); }
+button.primary { background: var(--accent); color: #fff; border: none; border-radius: var(--radius); padding: 8px 14px; cursor: pointer; font-size: .95rem; }
+button.ghost { background: #fff; color: var(--accent); border: 1px solid var(--accent); border-radius: var(--radius); padding: 6px 12px; cursor: pointer; }
+button:disabled { opacity: .5; cursor: default; }
+
+/* 進め方（フェーズ）の帯 */
+.phasebar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+.step { padding: 4px 10px; border-radius: 999px; background: #f3f3f3; color: var(--muted); font-size: .85rem; cursor: pointer; }
+.step.done { background: var(--accent-soft); color: var(--accent); }
+.step.now { background: var(--accent); color: #fff; font-weight: bold; }
+.arrow { color: var(--muted); }
+.timer { margin-left: auto; font-weight: bold; }
+.notice { background: var(--accent-soft); border-radius: var(--radius); padding: 8px 12px; margin-bottom: 12px; font-size: .9rem; }
+.notice.teacher { background: #f3f3f3; }
+
+/* 付箋 */
+.note { background: #fff4b8; border-radius: 4px; padding: 8px 10px; box-shadow: 0 1px 3px rgba(0,0,0,.18); font-size: .9rem; width: 150px; min-height: 64px; display: flex; flex-direction: column; justify-content: space-between; gap: 6px; }
+.note .who { font-size: .72rem; color: #555; display: flex; justify-content: space-between; }
+.votes { color: var(--accent); letter-spacing: 2px; }
+.notes { display: flex; flex-wrap: wrap; gap: 10px; align-content: flex-start; }
+
+/* ゾーン型 */
+.zone-grid { display: grid; gap: 8px; }
+.zone { border: 1px solid var(--border); border-radius: var(--radius); padding: 10px; min-height: 180px; background: #fcfcfc; }
+.zone h3 { margin: 0; font-size: 1rem; }
+.zone .hint { font-size: .8rem; color: var(--muted); margin: 2px 0 10px; }
+.cluster { border: 2px dashed var(--accent); border-radius: var(--radius); padding: 8px; background: #fafaff; }
+.cluster-title { font-weight: bold; color: var(--accent); margin-bottom: 6px; font-size: .9rem; }
+
+/* 2 軸型 */
+.axis-wrap { display: grid; grid-template-columns: 28px 1fr; grid-template-rows: 1fr 28px; gap: 4px; }
+.axis-y { writing-mode: vertical-rl; transform: rotate(180deg); text-align: center; font-size: .85rem; color: var(--muted); display: flex; justify-content: space-between; }
+.axis-x { grid-column: 2; font-size: .85rem; color: var(--muted); display: flex; justify-content: space-between; }
+.plane { position: relative; height: 460px; border: 1px solid var(--border); border-radius: var(--radius); display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; overflow: hidden; }
+.quad { border: 1px dashed var(--border); padding: 8px; font-weight: bold; color: #b0b0b0; font-size: 1.05rem; }
+.quad.q-do_now { background: #f3fbf3; }
+.plane .note { position: absolute; transform: translate(-50%, -50%); width: 140px; }
+
+/* 結論 */
+.conclusion { margin-top: 12px; border: 1px solid var(--accent); border-radius: var(--radius); padding: 12px; }
+.conclusion h3 { margin: 0 0 6px; font-size: 1rem; color: var(--accent); }
+
+/* 選ぶ画面 */
+.search { width: 100%; padding: 10px 12px; font-size: 1.05rem; border: 2px solid var(--accent); border-radius: var(--radius); }
+.cands { margin: 8px 0 20px; border: 1px solid var(--border); border-radius: var(--radius); }
+.cand { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-bottom: 1px solid var(--border); }
+.cand:last-child { border-bottom: none; }
+.cand .body { flex: 1; min-width: 0; }
+.cand .name { font-weight: bold; }
+.cand .sub { font-size: .8rem; color: var(--muted); margin-top: 2px; }
+.badge { display: inline-block; font-size: .72rem; padding: 1px 8px; border-radius: 999px; background: #f3f3f3; margin-left: 6px; font-weight: normal; }
+.uses { font-size: .8rem; color: var(--muted); white-space: nowrap; }
+mark { background: #ffe58a; padding: 0; }
+.picked { border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; }
+.picked-row { padding: 8px 0; border-bottom: 1px solid #eee; }
+.picked-row:last-child { border-bottom: none; }
+.picked-row .phases { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 6px; font-size: .9rem; }
+.locked { color: var(--muted); font-size: .8rem; }
+.toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #333; color: #fff; padding: 10px 16px; border-radius: var(--radius); display: none; }
+.empty { padding: 12px; color: var(--muted); }
+
+@media (max-width: 720px) {
+  .side { display: none; }
+  .zone-grid { grid-template-columns: 1fr !important; }
+  .plane { height: 380px; }
+}
+</style>
+</head>
+<body>
+<div class="shell">
+  <nav class="rail"><div class="rail-item active">演</div><div class="rail-item" style="background:transparent;border:1px dashed rgba(255,255,255,.5)">＋</div></nav>
+  <aside class="side">
+    <h2>プロジェクト演習 第3回</h2>
+    <ul id="team-list"></ul>
+    <div id="teacher-side">
+      <div class="section">教員のみ</div>
+      <ul><li>メンバー管理</li><li>フレームワークを選ぶ</li><li>ダッシュボード</li></ul>
+    </div>
+  </aside>
+  <main class="main">
+    <div class="mock-banner">これは<b>見本の画面</b>です（ステップ 2〜4 で本物を作ります）。付箋や回数は見本のデータです。</div>
+    <div class="topbar">
+      <div class="title">1班</div>
+      <span>見る人</span>
+      <div class="seg" id="viewer-seg">
+        <button data-v="A">学生A</button><button data-v="teacher">教員</button>
+      </div>
+    </div>
+    <div class="tabs" id="tabs"></div>
+    <div class="content" id="content"></div>
+  </main>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+// ===== フレームワークの定義（docs/06_framework_design.md §2 の形） =====
+const FRAMEWORKS = [
+  {
+    key: "brainstorm", name: "ブレインストーミング",
+    aliases: ["ブレスト", "アイデア出し", "brainstorming"], tags: ["発想", "アイデア", "量を出す"],
+    board_type: "zone", layout: { columns: 1, rows: 1 },
+    zones: [{ key: "main", label: "テーマ：学園祭で新しくやる企画", hint: "質より量。人の案を否定しない" }],
+    phases: [{ key: "individual", default_minutes: 5 }, { key: "reveal" }, { key: "cluster" }, { key: "vote", votes_per_person: 3 }, { key: "conclusion" }],
+    meta: { purpose: "ideate", thinking: "diverge", description: "テーマについて、思いつく案をできるだけ多く出す" },
+    uses: 12,
+  },
+  {
+    key: "swot", name: "SWOT 分析",
+    aliases: ["スウォット", "SWOT分析", "強み弱み"], tags: ["分析", "現状把握", "戦略", "内部環境", "外部環境"],
+    board_type: "zone", layout: { columns: 2, rows: 2 },
+    zones: [
+      { key: "S", label: "強み Strengths", hint: "内部・プラス" },
+      { key: "W", label: "弱み Weaknesses", hint: "内部・マイナス" },
+      { key: "O", label: "機会 Opportunities", hint: "外部・プラス" },
+      { key: "T", label: "脅威 Threats", hint: "外部・マイナス" },
+    ],
+    phases: [{ key: "individual", default_minutes: 7 }, { key: "reveal" }, { key: "cluster" }, { key: "vote", votes_per_person: 3 }, { key: "conclusion" }],
+    meta: { purpose: "analyze", thinking: "converge", description: "内部の強み・弱みと、外部の機会・脅威を 4 象限で整理する" },
+    uses: 8,
+  },
+  {
+    key: "payoff_matrix", name: "ペイオフマトリクス",
+    aliases: ["ペイオフ", "効果と実現性", "優先順位"], tags: ["決定", "優先順位", "選ぶ", "効果", "実現しやすさ"],
+    board_type: "axis",
+    axes: { x: { label: "実現しやすさ", low: "難しい", high: "易しい" }, y: { label: "効果", low: "小さい", high: "大きい" } },
+    quadrants: [
+      { key: "plan", label: "計画してやる", x: "low", y: "high" },
+      { key: "do_now", label: "すぐやる", x: "high", y: "high" },
+      { key: "drop", label: "やらない", x: "low", y: "low" },
+      { key: "spare", label: "手が空いたら", x: "high", y: "low" },
+    ],
+    phases: [{ key: "individual", default_minutes: 5 }, { key: "reveal" }, { key: "vote", votes_per_person: 3 }, { key: "conclusion" }],
+    meta: { purpose: "decide", thinking: "converge", description: "案を「効果」と「実現しやすさ」の 2 つの軸に置いて、やる順を決める" },
+    uses: 5,
+  },
+];
+const PURPOSE = { ideate: "発想", analyze: "分析", organize: "整理", decide: "決定", plan: "計画", reflect: "振り返り", discuss: "話し合い" };
+const THINKING = { diverge: "発散", converge: "収束" };
+const PHASE = { individual: "個人ワーク", reveal: "公開", cluster: "まとめる", vote: "投票", conclusion: "結論" };
+const LOCKED = ["individual", "reveal"]; // 抜けない進め方（D-023）
+
+// ===== 見本の付箋 =====
+const AUTHORS = { A: ["学生A", "#fff4b8"], B: ["学生B", "#d8f0ff"], C: ["学生C", "#ffe0ec"], D: ["学生D", "#dff5d8"] };
+const NOTES = {
+  brainstorm: [
+    { a: "A", zone: "main", text: "屋台の売上を競うコンテスト", cluster: "食べ物", votes: 1 },
+    { a: "B", zone: "main", text: "地域のお店とコラボした屋台", cluster: "食べ物", votes: 3 },
+    { a: "C", zone: "main", text: "謎解きスタンプラリー", cluster: "体験", votes: 4 },
+    { a: "A", zone: "main", text: "教室まるごと脱出ゲーム", cluster: "体験", votes: 2 },
+    { a: "D", zone: "main", text: "卒業生のトークイベント", votes: 1 },
+    { a: "B", zone: "main", text: "夜のプロジェクションマッピング", votes: 1 },
+  ],
+  swot: [
+    { a: "A", zone: "S", text: "来場者が毎年多い", votes: 2 },
+    { a: "B", zone: "S", text: "サークルの数が多い", votes: 1 },
+    { a: "C", zone: "W", text: "準備の時間が足りない", votes: 3 },
+    { a: "A", zone: "W", text: "SNS の発信が弱い", votes: 2 },
+    { a: "D", zone: "O", text: "駅前の再開発で人が増える", votes: 2 },
+    { a: "B", zone: "O", text: "地域の商店街が協力的", votes: 1 },
+    { a: "C", zone: "T", text: "近くの大学と日程がかぶる", votes: 1 },
+    { a: "D", zone: "T", text: "雨の日の対策がない", votes: 0 },
+  ],
+  payoff_matrix: [
+    { a: "C", x: 0.80, y: 0.82, text: "謎解きスタンプラリー", votes: 4 },
+    { a: "B", x: 0.60, y: 0.70, text: "地域コラボ屋台", votes: 3 },
+    { a: "B", x: 0.18, y: 0.86, text: "プロジェクションマッピング", votes: 1 },
+    { a: "D", x: 0.78, y: 0.28, text: "卒業生トーク", votes: 1 },
+    { a: "A", x: 0.30, y: 0.58, text: "脱出ゲーム", votes: 2 },
+    { a: "A", x: 0.88, y: 0.45, text: "売上コンテスト", votes: 1 },
+  ],
+};
+const CONCLUSION = {
+  brainstorm: "「体験」の案が多く票も集まった。謎解きスタンプラリーを軸に、地域コラボ屋台と組み合わせる。",
+  swot: "強み（来場者の多さ）と機会（商店街の協力）を活かす。弱み（準備時間）は早めの役割分担で補う。",
+  payoff_matrix: "すぐやる：謎解きスタンプラリー・地域コラボ屋台。計画してやる：脱出ゲーム。",
+};
+
+// ===== 画面の状態 =====
+const params = new URLSearchParams(location.search);
+const state = {
+  viewer: params.get("viewer") || "teacher",           // "A" か "teacher"
+  tab: params.get("tab") || "select",                   // "select" かフレームワークの key
+  query: params.get("q") || "",
+  // 授業で選んだもの（D-021）。phases は抜いたあとの並び
+  picked: FRAMEWORKS.map(f => ({ key: f.key, phases: f.phases.map(p => p.key) })),
+  current: {},                                          // ボードごとの今のフェーズ
+  remaining: {},                                        // 個人ワークの残り秒
+};
+FRAMEWORKS.forEach(f => {
+  state.current[f.key] = params.get("phase") || "individual";
+  state.remaining[f.key] = (f.phases[0].default_minutes || 5) * 60 - 28;
+});
+const fw = key => FRAMEWORKS.find(f => f.key === key);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+// ===== 文字をそろえる（全角半角・大文字小文字・カタカナひらがな）=====
+function normChar(ch) {
+  let c = ch.normalize("NFKC").toLowerCase();
+  const code = c.charCodeAt(0);
+  if (c.length === 1 && code >= 0x30a1 && code <= 0x30f6) c = String.fromCharCode(code - 0x60); // カタカナ → ひらがな
+  return c;
+}
+const norm = s => Array.from(s).map(normChar).join("");
+
+// 打った言葉に合った所を <mark> で囲む
+function highlight(text, q) {
+  if (!q) return esc(text);
+  const chars = Array.from(text);
+  const n = chars.map(normChar);
+  const joined = n.join("");
+  const nq = norm(q);
+  const at = joined.indexOf(nq);
+  if (at < 0 || n.some(c => c.length !== 1)) return esc(text);
+  return esc(chars.slice(0, at).join("")) + "<mark>" + esc(chars.slice(at, at + nq.length).join("")) + "</mark>" + esc(chars.slice(at + nq.length).join(""));
+}
+
+// 合い方の強さ（機能設計書 §5 F-06 の並び順）
+function score(f, q) {
+  const nq = norm(q);
+  if (!nq) return 0;
+  const name = norm(f.name);
+  if (name.startsWith(nq)) return 4;
+  if (name.includes(nq)) return 3;
+  if (f.aliases.some(a => norm(a).includes(nq))) return 2;
+  const rest = [f.meta.description, PURPOSE[f.meta.purpose], THINKING[f.meta.thinking], ...f.tags].map(norm).join(" ");
+  return rest.includes(nq) ? 1 : -1;
+}
+
+// ===== 描く =====
+function render() {
+  document.querySelectorAll("#viewer-seg button").forEach(b => b.classList.toggle("on", b.dataset.v === state.viewer));
+  document.getElementById("teacher-side").style.display = state.viewer === "teacher" ? "" : "none";
+  document.getElementById("team-list").innerHTML = (state.viewer === "teacher" ? ["1班", "2班", "3班"] : ["1班"])
+    .map((t, i) => `<li class="${i === 0 ? "active" : ""}">${t}</li>`).join("");
+  if (state.viewer !== "teacher" && state.tab === "select") state.tab = state.picked[0]?.key || "select";
+
+  const tabs = [];
+  if (state.viewer === "teacher") tabs.push(`<div class="tab teacher-only ${state.tab === "select" ? "on" : ""}" data-tab="select">フレームワークを選ぶ</div>`);
+  state.picked.forEach(p => tabs.push(`<div class="tab ${state.tab === p.key ? "on" : ""}" data-tab="${p.key}">${esc(fw(p.key).name)}</div>`));
+  document.getElementById("tabs").innerHTML = tabs.join("");
+
+  document.getElementById("content").innerHTML = state.tab === "select" ? renderSelect() : renderBoard(state.tab);
+  const s = document.querySelector(".search");
+  if (s) { s.focus(); s.setSelectionRange(s.value.length, s.value.length); }
+}
+
+function renderSelect() {
+  const q = state.query;
+  let list = FRAMEWORKS.map(f => ({ f, s: score(f, q) })).filter(x => !q || x.s >= 0);
+  list.sort((a, b) => (b.s - a.s) || (b.f.uses - a.f.uses));
+  const rows = list.map(({ f }) => {
+    const picked = state.picked.some(p => p.key === f.key);
+    return `<div class="cand">
+      <div class="body">
+        <div class="name">${highlight(f.name, q)}<span class="badge">${PURPOSE[f.meta.purpose]}</span><span class="badge">${THINKING[f.meta.thinking]}</span></div>
+        <div class="sub">別名：${f.aliases.map(a => highlight(a, q)).join("・")}</div>
+        <div class="sub">${esc(f.meta.description)}</div>
+      </div>
+      <div class="uses">${f.uses} 回使われています</div>
+      <button class="ghost" data-pick="${f.key}" ${picked ? "disabled" : ""}>${picked ? "選択済み" : "選ぶ"}</button>
+    </div>`;
+  }).join("") || `<div class="empty">合うフレームワークがありません</div>`;
+
+  const picked = state.picked.map((p, i) => {
+    const f = fw(p.key);
+    const boxes = f.phases.map(ph => {
+      const locked = LOCKED.includes(ph.key);
+      const on = p.phases.includes(ph.key);
+      return `<label><input type="checkbox" data-phase="${p.key}:${ph.key}" ${on ? "checked" : ""} ${locked ? "disabled" : ""}> ${PHASE[ph.key]}</label>`;
+    }).join("");
+    return `<div class="picked-row"><b>${i + 1}. ${esc(f.name)}</b> <button class="ghost" style="padding:2px 8px;font-size:.8rem" data-unpick="${p.key}">外す</button>
+      <div class="phases">進め方：${boxes}</div></div>`;
+  }).join("") || `<div class="empty">まだ選んでいません</div>`;
+
+  return `<p style="margin-top:0">言葉を打つたびに候補が絞られます。何も打っていないときは<b>よく使われている順</b>です。</p>
+    <input class="search" placeholder="例：ブレ、ぶれすと、分析、優先順位" value="${esc(q)}">
+    <div class="cands">${rows}</div>
+    <h3 style="font-size:1rem;margin:0 0 8px">選んだもの（タブの順）</h3>
+    <div class="picked">${picked}
+      <p class="locked">個人ワークと公開は外せません（他の人を見ずに考える時間を守るため）。</p>
+      <button class="primary" id="deal" ${state.picked.length ? "" : "disabled"}>全班に配る</button>
+    </div>`;
+}
+
+function noteHtml(n, phaseIdx, phases) {
+  const [name, color] = AUTHORS[n.a];
+  const showVotes = phases.includes("vote") && phaseIdx >= phases.indexOf("vote");
+  return `<div class="note" style="background:${color}${n.x !== undefined ? `;left:${n.x * 100}%;top:${(1 - n.y) * 100}%` : ""}">
+    <div>${esc(n.text)}</div>
+    <div class="who"><span>${name}</span><span class="votes">${showVotes ? "●".repeat(n.votes) : ""}</span></div></div>`;
+}
+
+function renderBoard(key) {
+  const f = fw(key);
+  const phases = state.picked.find(p => p.key === key).phases;
+  if (!phases.includes(state.current[key])) state.current[key] = phases[0];
+  const now = state.current[key];
+  const idx = phases.indexOf(now);
+  const teacher = state.viewer === "teacher";
+  const blind = now === "individual";
+
+  // 進め方の帯
+  const steps = phases.map((p, i) => `<span class="step ${i < idx ? "done" : i === idx ? "now" : ""}" data-step="${key}:${p}">${PHASE[p]}</span>`).join('<span class="arrow">›</span>');
+  const sec = state.remaining[key];
+  const timer = blind ? `<span class="timer">残り ${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}（0:00 で自動公開）</span>` : "";
+
+  // 見える付箋（個人ワーク中の学生は自分の分だけ。D-006・D-011）
+  let notes = NOTES[key];
+  if (blind && !teacher) notes = notes.filter(n => n.a === state.viewer);
+
+  let notice = teacher
+    ? `<div class="notice teacher">教員は<b>閲覧中</b>です（書き込みはしません）。${blind ? "個人ワーク中も、全員の付箋が見えています。" : ""}</div>`
+    : blind ? `<div class="notice">他の人の付箋は、まだ見えません。時間が来たら自動で公開されます。</div>`
+            : `<div class="notice">全員の付箋が見えています（作成者の名前つき）。</div>`;
+  const addBtn = teacher ? "" : `<button class="primary" id="add" style="margin-bottom:12px">＋ 付箋を足す</button>`;
+
+  let board = "";
+  if (f.board_type === "zone") {
+    const showClusters = phases.includes("cluster") && idx >= phases.indexOf("cluster");
+    const zones = f.zones.map(z => {
+      const zn = notes.filter(n => n.zone === z.key);
+      let inner;
+      if (showClusters && zn.some(n => n.cluster)) {
+        const groups = [...new Set(zn.filter(n => n.cluster).map(n => n.cluster))];
+        inner = groups.map(g => `<div class="cluster"><div class="cluster-title">まとまり：${esc(g)}</div><div class="notes">${zn.filter(n => n.cluster === g).map(n => noteHtml(n, idx, phases)).join("")}</div></div>`).join("")
+          + zn.filter(n => !n.cluster).map(n => noteHtml(n, idx, phases)).join("");
+      } else {
+        inner = zn.map(n => noteHtml(n, idx, phases)).join("");
+      }
+      return `<div class="zone"><h3>${esc(z.label)}</h3><div class="hint">${esc(z.hint)}</div><div class="notes">${inner}</div></div>`;
+    }).join("");
+    board = `<div class="zone-grid" style="grid-template-columns:repeat(${f.layout.columns},1fr)">${zones}</div>`;
+  } else if (f.board_type === "axis") {
+    const quads = f.quadrants.map(q => `<div class="quad q-${q.key}">${esc(q.label)}</div>`).join("");
+    board = `<div class="axis-wrap">
+      <div class="axis-y"><span>${esc(f.axes.y.low)}</span><b>${esc(f.axes.y.label)} →</b><span>${esc(f.axes.y.high)}</span></div>
+      <div class="plane">${quads}${notes.map(n => noteHtml(n, idx, phases)).join("")}</div>
+      <div class="axis-x"><span>${esc(f.axes.x.low)}</span><b>${esc(f.axes.x.label)} →</b><span>${esc(f.axes.x.high)}</span></div>
+    </div>`;
+  }
+
+  const conclusion = now === "conclusion" ? `<div class="conclusion"><h3>班の結論（残ります）</h3>${esc(CONCLUSION[key])}</div>` : "";
+  return `<div class="phasebar">${steps}${timer}</div>${notice}${addBtn}${board}${conclusion}
+    <p class="locked" style="margin-top:12px">見本の操作：上の進め方の丸を押すと、そのフェーズの見え方に切り替わります。</p>`;
+}
+
+// ===== 操作 =====
+document.addEventListener("click", e => {
+  const t = e.target;
+  if (t.dataset.v) { state.viewer = t.dataset.v; render(); }
+  else if (t.dataset.tab) { state.tab = t.dataset.tab; render(); }
+  else if (t.dataset.pick) { state.picked.push({ key: t.dataset.pick, phases: fw(t.dataset.pick).phases.map(p => p.key) }); render(); }
+  else if (t.dataset.unpick) { state.picked = state.picked.filter(p => p.key !== t.dataset.unpick); render(); }
+  else if (t.dataset.step) { const [k, p] = t.dataset.step.split(":"); state.current[k] = p; render(); }
+  else if (t.id === "deal") { toast(`1班・2班・3班に ${state.picked.length} 個のボードを配りました（見本）`); }
+  else if (t.id === "add") {
+    const text = prompt("付箋に書くこと");
+    if (text) { const f = fw(state.tab); NOTES[f.key].push({ a: state.viewer, zone: f.zones?.[0].key, x: 0.5, y: 0.5, text, votes: 0 }); render(); }
+  }
+});
+document.addEventListener("change", e => {
+  const t = e.target;
+  if (t.dataset.phase) {
+    const [k, ph] = t.dataset.phase.split(":");
+    const p = state.picked.find(x => x.key === k);
+    const all = fw(k).phases.map(x => x.key);
+    p.phases = all.filter(x => x === ph ? t.checked : p.phases.includes(x));
+    render();
+  }
+});
+document.addEventListener("input", e => {
+  if (e.target.classList.contains("search")) { state.query = e.target.value; render(); }
+});
+function toast(msg) { const el = document.getElementById("toast"); el.textContent = msg; el.style.display = "block"; setTimeout(() => el.style.display = "none", 2500); }
+
+// 個人ワークの残り時間（0 で自動公開）
+setInterval(() => {
+  let changed = false;
+  for (const k in state.current) {
+    if (state.current[k] === "individual" && state.remaining[k] > 0) {
+      state.remaining[k]--;
+      if (state.remaining[k] === 0) { state.current[k] = "reveal"; toast("時間になったので公開しました"); }
+      if (state.tab === k) changed = true;
+    }
+  }
+  if (changed) { const tm = document.querySelector(".timer"); if (tm && state.current[state.tab] === "individual") { const s = state.remaining[state.tab]; tm.textContent = `残り ${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}（0:00 で自動公開）`; } else render(); }
+}, 1000);
+
+render();
+</script>
+</body>
+</html>

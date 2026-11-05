@@ -1,11 +1,12 @@
 """授業の作成・ホーム・メンバー管理・招待コード（F-03・F-05 の画面）。"""
 from fastapi import APIRouter, Depends, Form, Request
-from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.invite import generate_unique_code
-from app.models import Course, Enrollment, TeamMember, User
+from app.messages import error_text
+from app.models import COURSE_NAME_MAX, Course, User
+from app.queries import students_of
 from app.routers.auth import redirect
 from app.security import (get_current_user, require_course_member,
                           require_course_teacher, require_teacher, team_of_student)
@@ -17,7 +18,7 @@ router = APIRouter()
 @router.get("/courses/new")
 def new_course_form(request: Request, user: User = Depends(require_teacher),
                     db: Session = Depends(get_db)):
-    return render(request, db, "course_new.html", user=user, error=None)
+    return render(request, db, "course_new.html", user=user, error=None, form={})
 
 
 @router.post("/courses")
@@ -25,9 +26,14 @@ def create_course(request: Request, name: str = Form(""),
                   user: User = Depends(require_teacher), db: Session = Depends(get_db)):
     """授業を作る。6 文字の招待コードが自動で付く。"""
     name = name.strip()
+    error = None
     if not name:
-        return render(request, db, "course_new.html", user=user,
-                      error="授業の名前を入力してください", status_code=400)
+        error = "授業の名前を入力してください"
+    elif len(name) > COURSE_NAME_MAX:
+        error = f"授業の名前は {COURSE_NAME_MAX} 文字までです"
+    if error:
+        return render(request, db, "course_new.html", user=user, error=error,
+                      form={"name": name}, status_code=400)
     course = Course(name=name, teacher_id=user.id, invite_code=generate_unique_code(db))
     db.add(course)
     db.commit()
@@ -43,17 +49,15 @@ def course_home(request: Request, course: Course = Depends(require_course_member
 
 
 @router.get("/courses/{course_id}/members")
-def members_page(request: Request, msg: str | None = None,
+def members_page(request: Request, error: str | None = None,
                  course: Course = Depends(require_course_teacher),
                  user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """メンバー管理（班分け・招待コード）。担当教員だけ。"""
-    students = list(db.scalars(
-        select(User).join(Enrollment, Enrollment.user_id == User.id)
-        .where(Enrollment.course_id == course.id).order_by(User.id)))
+    students = students_of(db, course.id)
     in_team = {m.user_id for team in course.teams for m in team.members}
     unassigned = [s for s in students if s.id not in in_team]
     return render(request, db, "members.html", user=user, course=course,
-                  students=students, unassigned=unassigned, msg=msg)
+                  students=students, unassigned=unassigned, msg=error_text(error))
 
 
 @router.post("/courses/{course_id}/invite-code/regenerate")

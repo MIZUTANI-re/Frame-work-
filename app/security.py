@@ -13,6 +13,9 @@ from sqlalchemy.orm import Session
 from app.db import get_db
 from app.models import Course, Enrollment, Team, TeamMember, User
 
+# パスワードの最低の長さ（案。Q18）
+MIN_PASSWORD_LENGTH = {"teacher": 10, "student": 6}
+
 # ※ 未習: argon2 のハッシュ化 — パスワードを元に戻せない文字列に変えて保存する方法
 _hasher = PasswordHash.recommended()
 
@@ -29,10 +32,23 @@ class LoginRequired(Exception):
     """ログインしていない。main.py で /login への移動に変える。"""
 
 
-def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
-    """セッション Cookie から、ログイン中のユーザーを返す。いなければ LoginRequired。"""
+def password_too_short(role: str, password: str) -> bool:
+    return len(password) < MIN_PASSWORD_LENGTH[role]
+
+
+def get_user_or_none(request: Request, db: Session) -> User | None:
+    """セッション Cookie から、ログイン中のユーザーを返す（いなければ None）。
+    Cookie に入れた「セッションの版」が DB と違えば、ログアウト済みの古い Cookie なので無効。"""
     user_id = request.session.get("user_id")
     user = db.get(User, user_id) if user_id else None
+    if user is None or request.session.get("sv") != user.session_version:
+        return None
+    return user
+
+
+def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
+    """ログイン中のユーザーを返す。いなければ LoginRequired。"""
+    user = get_user_or_none(request, db)
     if user is None:
         raise LoginRequired()
     return user
@@ -108,7 +124,7 @@ def require_team_member(team_id: int, user: User = Depends(get_current_user),
 
 def require_team_teacher(team_id: int, user: User = Depends(get_current_user),
                          db: Session = Depends(get_db)) -> Team:
-    """班の編集（名前変更・削除・メンバー操作）ができる人（担当教員だけ）。
+    """班の編集（名前変更・メンバー操作）ができる人（担当教員だけ）。
     その班の学生は 403、それ以外は 404。"""
     team = require_team_member(team_id, user, db)  # ここで 404 が決まる
     if user.id != team.course.teacher_id:

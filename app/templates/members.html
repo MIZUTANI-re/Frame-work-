@@ -20,7 +20,7 @@
     <button type="submit">ランダムに振り分ける</button>
   </form>
   <form method="post" action="/courses/{{ course.id }}/teams" class="row">
-    <label>新しい班の名前 <input name="name" placeholder="空なら「N班」"></label>
+    <label>新しい班の名前 <input name="name" maxlength="100" placeholder="空なら「N班」"></label>
     <button type="submit">班を作る</button>
   </form>
 </section>
@@ -29,7 +29,7 @@
 <section class="panel">
   <h3><a href="/teams/{{ t.id }}">{{ t.name }}</a>（{{ t.members|length }} 人）</h3>
   <form method="post" action="/teams/{{ t.id }}/rename" class="row">
-    <input name="name" value="{{ t.name }}" required>
+    <input name="name" value="{{ t.name }}" maxlength="100" required>
     <button type="submit">名前を変更</button>
   </form>
   <ul>
@@ -47,9 +47,6 @@
       {% for s in students %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}
     </select>
     <button type="submit">この班に入れる</button>
-  </form>
-  <form method="post" action="/teams/{{ t.id }}/delete">
-    <button type="submit" class="danger">この班を削除</button>
   </form>
 </section>
 {% endfor %}

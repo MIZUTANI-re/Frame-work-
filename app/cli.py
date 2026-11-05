@@ -6,12 +6,12 @@ import argparse
 import getpass
 import sys
 
-from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db import SessionLocal, create_tables
-from app.models import User
-from app.security import hash_password
+from app.models import USER_NAME_MAX, User
+from app.queries import find_user_by_name
+from app.security import MIN_PASSWORD_LENGTH, hash_password, password_too_short
 
 
 def create_teacher(db: Session, name: str, password: str) -> User:
@@ -19,7 +19,11 @@ def create_teacher(db: Session, name: str, password: str) -> User:
     name = name.strip()
     if not name or not password:
         raise ValueError("名前とパスワードを入力してください")
-    if db.scalar(select(User.id).where(User.name == name)) is not None:
+    if len(name) > USER_NAME_MAX:
+        raise ValueError(f"名前は {USER_NAME_MAX} 文字までです")
+    if password_too_short("teacher", password):
+        raise ValueError(f"パスワードは {MIN_PASSWORD_LENGTH['teacher']} 文字以上にしてください")
+    if find_user_by_name(db, name) is not None:
         raise ValueError("その名前は使われています")
     user = User(name=name, role="teacher", password_hash=hash_password(password))
     db.add(user)
