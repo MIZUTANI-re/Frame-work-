@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}{{ team.name }} - Frame-work{% endblock %}
+{% block heading %}{{ course.name }} / {{ team.name }}{% endblock %}
+{% block content %}
+{% if user.role == 'teacher' %}<p class="badge">閲覧中</p>{% endif %}
+<h2>{{ team.name }}</h2>
+<p>メンバー：{% for m in team.members %}{{ m.user.name }}{% if not loop.last %}、{% endif %}{% else %}まだいません{% endfor %}</p>
+<div class="placeholder">ボードはステップ 2 で追加します。</div>
+{% endblock %}

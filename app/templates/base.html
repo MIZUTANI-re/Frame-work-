@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Frame-work{% endblock %}</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+{% if user %}
+{# ログイン後の画面。Teams 風に「レール | 2 列目 | メイン」の 3 列で並べる #}
+<body>
+<div class="shell" id="shell">
+
+  {# 左端のレール：参加している授業 #}
+  <nav class="rail" aria-label="授業">
+    {% for c in rail_courses %}
+      <a class="rail-item {% if course and course.id == c.id %}active{% endif %}"
+         href="/courses/{{ c.id }}" title="{{ c.name }}">{{ c.name[:2] }}</a>
+    {% endfor %}
+    {% if user.role == 'teacher' %}
+      <a class="rail-item rail-add" href="/courses/new" title="授業を作る">＋</a>
+    {% else %}
+      <a class="rail-item rail-add" href="/join" title="授業に参加">＋</a>
+    {% endif %}
+  </nav>
+
+  {# 2 列目：班の一覧（スマホでは普段はたたんでおく） #}
+  <aside class="side" id="side">
+    {% if course %}
+      <h2 class="side-title"><a href="/courses/{{ course.id }}">{{ course.name }}</a></h2>
+      <ul class="side-list">
+        {% for t in side_teams %}
+          <li><a class="{% if team and team.id == t.id %}active{% endif %}"
+                 href="/teams/{{ t.id }}"># {{ t.name }}</a></li>
+        {% else %}
+          <li class="muted">班はまだありません</li>
+        {% endfor %}
+      </ul>
+      {% if user.role == 'teacher' %}
+        <div class="side-section">教員のみ</div>
+        <ul class="side-list">
+          <li><a href="/courses/{{ course.id }}/members">メンバー管理</a></li>
+        </ul>
+      {% endif %}
+    {% else %}
+      <p class="muted side-empty">授業を選んでください</p>
+    {% endif %}
+  </aside>
+
+  {# メイン：白い領域 #}
+  <div class="main">
+    <header class="topbar">
+      <button type="button" class="side-toggle" id="side-toggle" aria-controls="side">☰ 班</button>
+      <span class="topbar-title">{% block heading %}{% endblock %}</span>
+      <span class="topbar-user">
+        {{ user.name }}（{{ '教員' if user.role == 'teacher' else '学生' }}）
+        <form method="post" action="/logout" class="inline"><button type="submit" class="link">ログアウト</button></form>
+      </span>
+    </header>
+    <main class="content">
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+</div>
+{# ※ 未習: ES Modules — type="module" の JS では import / export で、ファイルをまたいで関数を使える #}
+<script type="module" src="/static/js/main.js"></script>
+</body>
+{% else %}
+<body class="plain">
+  <main class="card">
+    {% block plain %}{% endblock %}
+  </main>
+</body>
+{% endif %}
+</html>

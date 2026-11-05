@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}メンバー管理 - Frame-work{% endblock %}
+{% block heading %}{{ course.name }} / メンバー管理{% endblock %}
+{% block content %}
+{% if msg %}<p class="error">{{ msg }}</p>{% endif %}
+
+<section class="panel">
+  <h2>招待コード</h2>
+  <p><span class="code">{{ course.invite_code }}</span></p>
+  <form method="post" action="/courses/{{ course.id }}/invite-code/regenerate">
+    <button type="submit">コードを再発行する</button>
+    <span class="muted">古いコードは使えなくなります（参加済みの学生はそのままです）。</span>
+  </form>
+</section>
+
+<section class="panel">
+  <h2>班分け（{{ students|length }} 人が参加中）</h2>
+  <form method="post" action="/courses/{{ course.id }}/teams/random" class="row">
+    <label>班の数 <input name="count" type="number" min="1" value="2" required></label>
+    <button type="submit">ランダムに振り分ける</button>
+  </form>
+  <form method="post" action="/courses/{{ course.id }}/teams" class="row">
+    <label>新しい班の名前 <input name="name" placeholder="空なら「N班」"></label>
+    <button type="submit">班を作る</button>
+  </form>
+</section>
+
+{% for t in course.teams %}
+<section class="panel">
+  <h3><a href="/teams/{{ t.id }}">{{ t.name }}</a>（{{ t.members|length }} 人）</h3>
+  <form method="post" action="/teams/{{ t.id }}/rename" class="row">
+    <input name="name" value="{{ t.name }}" required>
+    <button type="submit">名前を変更</button>
+  </form>
+  <ul>
+    {% for m in t.members %}
+      <li>{{ m.user.name }}
+        <form method="post" action="/teams/{{ t.id }}/members/{{ m.user_id }}/remove" class="inline">
+          <button type="submit" class="link">外す</button>
+        </form></li>
+    {% else %}
+      <li class="muted">メンバーはいません</li>
+    {% endfor %}
+  </ul>
+  <form method="post" action="/teams/{{ t.id }}/members" class="row">
+    <select name="user_id" required>
+      {% for s in students %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}
+    </select>
+    <button type="submit">この班に入れる</button>
+  </form>
+  <form method="post" action="/teams/{{ t.id }}/delete">
+    <button type="submit" class="danger">この班を削除</button>
+  </form>
+</section>
+{% endfor %}
+
+<section class="panel">
+  <h3>班が決まっていない学生</h3>
+  <ul>
+    {% for s in unassigned %}<li>{{ s.name }}</li>{% else %}<li class="muted">いません</li>{% endfor %}
+  </ul>
+</section>
+{% endblock %}

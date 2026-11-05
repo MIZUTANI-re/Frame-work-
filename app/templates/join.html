@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}授業に参加 - Frame-work{% endblock %}
+{% block plain %}
+<h1>授業に参加</h1>
+{% if error %}<p class="error">{{ error }}</p>{% endif %}
+<form method="post" action="/join" class="stack">
+  <label>招待コード（6 文字） <input name="code" value="{{ form.code or '' }}" maxlength="6" required autofocus></label>
+  <label>名前 <input name="name" value="{{ form.name or '' }}" required></label>
+  <label>パスワード <input name="password" type="password" required></label>
+  <button type="submit">参加する</button>
+</form>
+<p class="muted">初めてのときは、入力した名前とパスワードで登録されます。2 回目以降は同じ名前とパスワードを入れてください。</p>
+<p class="muted"><a href="/login">ログインへ</a></p>
+{% endblock %}

@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}授業の作成 - Frame-work{% endblock %}
+{% block heading %}授業を作る{% endblock %}
+{% block content %}
+{% if error %}<p class="error">{{ error }}</p>{% endif %}
+<form method="post" action="/courses" class="stack narrow">
+  <label>授業の名前 <input name="name" required autofocus></label>
+  <button type="submit">作成する</button>
+</form>
+<p class="muted">作成すると 6 文字の招待コードが付きます。学生にそのコードを伝えてください。</p>
+{% endblock %}

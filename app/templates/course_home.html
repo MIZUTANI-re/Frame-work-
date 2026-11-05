@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}{{ course.name }} - Frame-work{% endblock %}
+{% block heading %}{{ course.name }}{% endblock %}
+{% block content %}
+{% if user.role == 'teacher' %}
+  <p>招待コード：<span class="code">{{ course.invite_code }}</span></p>
+  <h2>班</h2>
+  {% if course.teams %}
+    <ul>
+      {% for t in course.teams %}
+        <li><a href="/teams/{{ t.id }}">{{ t.name }}</a>（{{ t.members|length }} 人）</li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="muted">班はまだありません。</p>
+  {% endif %}
+  <p><a class="button" href="/courses/{{ course.id }}/members">メンバー管理（班分け・招待コード）</a></p>
+{% else %}
+  {% if my_team %}
+    <p>あなたの班：<a href="/teams/{{ my_team.id }}">{{ my_team.name }}</a></p>
+  {% else %}
+    <p class="muted">班はまだ決まっていません。先生が班を分けるまで待ってください。</p>
+  {% endif %}
+{% endif %}
+{% endblock %}
