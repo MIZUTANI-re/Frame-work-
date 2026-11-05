@@ -57,6 +57,13 @@ def ensure_db_dir(url: str) -> None:
         Path(parsed.database).parent.mkdir(parents=True, exist_ok=True)
 
 
+def make_migration_engine(url: str):
+    """Alembic 用の engine。外部キーの確かめ（PRAGMA）は ON にしない。
+    SQLite で「表を作り直す」版（batch 方式）を流すとき、ON のままだと参照している行があって止まるため。
+    アプリの接続（make_engine）は ON のままでよい。"""
+    return create_engine(url)
+
+
 def make_engine(url: str):
     """URL から engine を作る。"""
     if url.startswith("sqlite"):

@@ -7,7 +7,7 @@ from alembic import context
 
 from app import models  # noqa: F401  （テーブル定義を読み込む）
 from app.config import database_url
-from app.db import Base, ensure_db_dir, make_engine
+from app.db import Base, ensure_db_dir, make_migration_engine
 
 config = context.config
 if config.config_file_name is not None and config.attributes.get("configure_logger", True):
@@ -19,7 +19,7 @@ target_metadata = Base.metadata
 def run_migrations_online() -> None:
     url = database_url()
     ensure_db_dir(url)
-    engine = make_engine(url)
+    engine = make_migration_engine(url)
     with engine.connect() as connection:
         # render_as_batch: SQLite でも列の変更などができるよう、版を「作り直し方式」で書く
         context.configure(connection=connection, target_metadata=target_metadata,

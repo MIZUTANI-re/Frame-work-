@@ -102,6 +102,8 @@ def assign_randomly(count: int = Form(...), user: User = Depends(get_current_use
     班は消さない（D-028・D-030）。count が今の班より少なければ何も変えない。足りない分は作る。"""
     students = students_of(db, course.id)
     # 班の数は「今の班の数以上」。学生の人数以下か、今の班の数と同じなら通す（空の班があってよい。D-041）
+    if not students:
+        return redirect(members_url(course.id, "no_students"))
     if count < 1:
         return redirect(members_url(course.id, "count_invalid"))
     if count < len(course.teams):

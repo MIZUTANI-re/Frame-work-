@@ -27,7 +27,8 @@ def test_班の数が不正だと何も変わらず通知が出る(teacher_clien
 
 def test_学生0人の授業ではランダム振り分けできない(teacher_client, course, db):
     r = teacher_client.post(f"/courses/{course.id}/teams/random", data={"count": 1})
-    assert r.headers["location"].endswith("error=count_over_students")
+    assert r.headers["location"].endswith("error=no_students")
+    assert "まだ学生がいません" in members_error(teacher_client, course, "no_students")
     assert db.scalar(select(Team)) is None
 
 

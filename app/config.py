@@ -57,7 +57,7 @@ def get_secret_key() -> str:
     if key:
         return key
     if is_production():
-        raise RuntimeError("APP_ENV=production では SECRET_KEY が必要です（.env か環境変数に書いてください）")
+        raise RuntimeError("APP_ENV=production では SECRET_KEY が必要です。箱（docker compose）で動かすなら deploy.env、手元なら .env か環境変数に書いてください")
     # 開発用の鍵は起動のたびに作る乱数（固定の値を公開リポジトリに置かない）。再起動するとログインは外れる
     warnings.warn("SECRET_KEY が設定されていません。起動のたびに変わる開発用の鍵を使います。")
     return secrets.token_urlsafe(32)

@@ -303,3 +303,94 @@ def test_外部キーがSQLiteでも確かめられる(session_factory):
         s.add(Enrollment(course_id=999, user_id=999))
         with pytest.raises(IntegrityError):
             s.flush()
+
+
+# ---- 3 回目のレビューの修正 ----
+def test_外部キーONの接続だと表の作り直しで止まるがAlembic用の接続なら通り行が残る(tmp_path, monkeypatch):
+    import sqlalchemy as sa
+    from alembic import op
+    from alembic.operations import Operations
+    from app.db import make_engine, make_migration_engine
+
+    def prepare(name):
+        """0001 まで上げ、users と courses に行を入れた DB の URL を返す。"""
+        url = f"sqlite:///{tmp_path / name}"
+        monkeypatch.setenv("DATABASE_URL", url)
+        command.upgrade(Config(str(ROOT / "alembic.ini")), "head")
+        with make_migration_engine(url).begin() as conn:
+            conn.execute(sa.text("INSERT INTO users (name, role, password_hash, created_at, failed_logins, session_version)"
+                                 " VALUES ('先生', 'teacher', 'h', '2026-01-01 00:00:00', 0, 0)"))
+            conn.execute(sa.text("INSERT INTO courses (name, teacher_id, invite_code, created_at)"
+                                 " VALUES ('授業', 1, 'ABCDEF', '2026-01-01 00:00:00')"))
+        return url
+
+    def rebuild_users(engine):
+        """users を作り直す（batch 方式）。Alembic の env.py と同じ流れ。"""
+        with engine.connect() as conn:
+            ctx = MigrationContext.configure(conn, opts={"render_as_batch": True})
+            with ctx.begin_transaction():
+                with Operations.context(ctx):
+                    with op.batch_alter_table("users", recreate="always") as batch:
+                        batch.add_column(sa.Column("tmp_col", sa.Integer(), nullable=True))
+
+    with pytest.raises(Exception):
+        rebuild_users(make_engine(prepare("fk_on.db")))  # 外部キー ON（アプリの接続）では止まる
+    url = prepare("fk_off.db")
+    plain = make_migration_engine(url)
+    rebuild_users(plain)  # Alembic 用の接続なら通る
+    with plain.connect() as conn:
+        assert conn.execute(sa.text("SELECT name FROM users")).scalar() == "先生"
+        assert conn.execute(sa.text("SELECT name FROM courses")).scalar() == "授業"
+
+
+def test_止まるときは回数を戻さず過ぎたあとの最初の確かめで戻す(monkeypatch, make_client, teacher, db):
+    c = make_client()
+    start = now()
+    monkeypatch.setattr(security_module, "now", lambda: start)
+    for _ in range(5):
+        login(c, "先生A", "まちがい")
+    db.expire_all()
+    u = db.scalar(select(User).where(User.name == "先生A"))
+    assert u.failed_logins == 5 and u.locked_until is not None
+    monkeypatch.setattr(security_module, "now", lambda: start + timedelta(minutes=6))
+    assert login(c, "先生A", "まちがい").status_code == 400  # 止まりは終わり、数え直して 1 回目
+    db.expire_all()
+    u = db.scalar(select(User).where(User.name == "先生A"))
+    assert u.failed_logins == 1 and u.locked_until is None
+
+
+def test_止まりの判定は照合の直前にDBから読み直す(session_factory, teacher):
+    """古い User オブジェクトを持っていても、別の取引で止められていれば locked になる。"""
+    with session_factory() as a, session_factory() as b:
+        stale = a.scalar(select(User).where(User.name == "先生A"))
+        for _ in range(5):
+            check_password_with_lock(b, b.scalar(select(User).where(User.name == "先生A")), "x")
+        assert stale.locked_until is None  # a の手元はまだ古い
+        assert check_password_with_lock(a, stale, TEACHER_PW) == "locked"
+
+
+def test_別のフォルダにいてもupgrade_databaseが動く(tmp_path, monkeypatch):
+    from app.db import upgrade_database
+    path = tmp_path / "cwd.db"
+    monkeypatch.setenv("DATABASE_URL", f"sqlite:///{path}")
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    monkeypatch.chdir(elsewhere)
+    upgrade_database()
+    assert "users" in inspect(create_engine(f"sqlite:///{path}")).get_table_names()
+
+
+def test_班の数の通知には今の数が入る(teacher_client, make_client, course):
+    join_students(make_client, course.invite_code, ["学生A", "学生B"])
+    for _ in range(3):
+        teacher_client.post(f"/courses/{course.id}/teams", data={"name": ""})
+    text = teacher_client.get(f"/courses/{course.id}/members?error=count_below_teams").text
+    assert "今の班は 3 つ、学生は 2 人です" in text and "3 を指定すると振り分けられます" in text
+
+
+def test_SECRET_KEYが無いときの文に置き場所が出る(monkeypatch):
+    monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.delenv("SECRET_KEY")
+    monkeypatch.setattr("app.config._read_dotenv", lambda: {})
+    with pytest.raises(RuntimeError, match="deploy.env"):
+        get_secret_key()

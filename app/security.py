@@ -45,10 +45,17 @@ def check_password_with_lock(db: Session, user: User, password: str) -> str:
     返す値：
       "locked" … 止まっている（正しいパスワードでも入れない）
       "ok"     … 合っている（まちがいの数をゼロに戻す）
-      "wrong"  … まちがい（数を 1 増やし、5 回目で止める）
+      "wrong"  … まちがい（数を 1 増やし、5 回目で止める）。止まりが過ぎたあとの最初の確かめでは、数をゼロに戻してから始める
     数えるのは DB の 1 回の UPDATE。同時に送られても、数が取りこぼされない。"""
+    db.refresh(user)  # 止まっているかは、照合の直前に DB から読み直した値で決める
     if is_locked(user):
         return "locked"
+    if user.locked_until is not None:
+        # 止まりの時刻が過ぎてから最初の確かめ：ここでまちがいの数をゼロに戻す
+        db.execute(update(User).where(User.id == user.id, User.locked_until <= now())
+                   .values(failed_logins=0, locked_until=None))
+        db.commit()
+        db.refresh(user)
     if verify_password(password, user.password_hash):
         if user.failed_logins or user.locked_until:
             user.failed_logins = 0
@@ -61,8 +68,9 @@ def check_password_with_lock(db: Session, user: User, password: str) -> str:
         .values(failed_logins=User.failed_logins + 1)
         .returning(User.failed_logins)).scalar_one()
     if count >= MAX_FAILED_LOGINS:
+        # 止める。回数はここではゼロに戻さない（戻すのは成功したときと、止まりが過ぎたあと）
         db.execute(update(User).where(User.id == user.id).values(
-            failed_logins=0, locked_until=now() + timedelta(minutes=LOCK_MINUTES)))
+            locked_until=now() + timedelta(minutes=LOCK_MINUTES)))
     db.commit()
     return "wrong"
 

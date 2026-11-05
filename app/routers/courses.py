@@ -58,7 +58,7 @@ def members_page(request: Request, error: str | None = None,
     unassigned = [s for s in students if s.id not in in_team]
     locked = [s for s in students if is_locked(s)]
     return render(request, db, "members.html", user=user, course=course, students=students,
-                  unassigned=unassigned, locked=locked, msg=error_text(error))
+                  unassigned=unassigned, locked=locked, msg=error_text(error, len(course.teams), len(students)))
 
 
 @router.post("/courses/{course_id}/invite-code/regenerate")
