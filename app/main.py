@@ -12,7 +12,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from app.config import BASE_DIR, cookie_secure, get_secret_key, is_production
 from app.db import SessionLocal, get_db, upgrade_database
 from app import framework_defs  # noqa: F401  （定義ファイルを読む。仕様に合わなければここで起動が止まる）
-from app.routers import auth, courses, frameworks, teams
+from app.routers import auth, boards, courses, frameworks, teams
 from app.security import LoginRequired, get_user_or_none
 from app.templating import render
 
@@ -52,6 +52,7 @@ def create_app() -> FastAPI:
     app.include_router(courses.router)
     app.include_router(frameworks.router)
     app.include_router(teams.router)
+    app.include_router(boards.router)
 
     @app.get("/healthz")
     def healthz(db: Session = Depends(get_db)):

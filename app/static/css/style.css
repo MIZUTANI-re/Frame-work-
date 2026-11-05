@@ -138,3 +138,16 @@ mark { background: #ffe58a; padding: 0; }
   .topbar { flex-wrap: wrap; }
   .shell { position: relative; }
 }
+
+/* ボードの盤面（見本 v2 に合わせる） */
+.notice.gray { background: #f3f3f3; }
+.zone-grid { display: grid; gap: 8px; }
+.zone { border: 1px solid var(--border); border-radius: var(--radius); padding: 10px; min-height: 170px; background: #fcfcfc; }
+.zone.over { outline: 2px dashed var(--accent); }
+.zone h3 { margin: 0; font-size: .98rem; }
+.zone .hint { font-size: .78rem; color: var(--muted); margin: 2px 0 8px; }
+.notes { display: flex; flex-wrap: wrap; gap: 10px; align-content: flex-start; margin-bottom: 8px; }
+.note { background: #fff4b8; border-radius: 4px; padding: 8px 10px; box-shadow: 0 1px 3px rgba(0,0,0,.18); font-size: .88rem; width: 150px; min-height: 60px; display: flex; flex-direction: column; justify-content: space-between; gap: 6px; overflow-wrap: anywhere; }
+.note.mine { cursor: grab; }
+.note .who { font-size: .72rem; color: #555; display: flex; justify-content: space-between; gap: 4px; }
+.note .del { background: none; color: #555; padding: 0 4px; font-size: .8rem; }

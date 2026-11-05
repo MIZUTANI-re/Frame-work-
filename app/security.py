@@ -223,14 +223,65 @@ def require_removable(db: Session, item) -> None:
         raise HTTPException(status_code=409)
 
 
-def visible_board_for(user: User, board: Board | None, fallback: Board | None) -> Board | None:
-    """班のページで開いてよいボード。学生は「いま」と「終わり」だけ。違えば fallback（今のボード。B-7）。
-    先生は全部見られる。"""
-    if board is None:
-        return fallback
-    if user.role == "student" and board.course_framework.status == "waiting":
-        return fallback
+# ---- ボードと付箋（ステップ 2b）の権限 ----
+# 画面で隠すだけでは足りないので、HTTP でも WebSocket でも、ここの関数でサーバーが必ず確かめる
+# WebSocket を切るときの理由のコード（4000 番台は自分たちで決めてよい番号）
+WS_NOT_LOGGED_IN = 4401
+WS_FORBIDDEN = 4403
+
+
+class BoardActionDenied(Exception):
+    """付箋の操作を断る。code は画面に返す理由（read_only / not_yours / not_found / invalid）。"""
+
+    def __init__(self, code: str):
+        super().__init__(code)
+        self.code = code
+
+
+def can_view_board(db: Session, user: User, board: Board) -> bool:
+    """ボードを見てよいか。先生は担当授業の全部。学生は自分の班の「いま」と「終わり」だけ（B-7）。"""
+    team = db.get(Team, board.team_id)
+    if team is None:
+        return False
+    if user.role == "teacher":
+        return team.course.teacher_id == user.id
+    mine = team_of_student(db, team.course_id, user.id)
+    return mine is not None and mine.id == team.id and board.course_framework.status != "waiting"
+
+
+def can_write_board(db: Session, user: User, board: Board) -> bool:
+    """付箋を書き換えてよいか。学生が、自分の班の「いま」のボードに対してだけ。先生は書かない（D-011）。"""
+    return (user.role == "student" and can_view_board(db, user, board)
+            and board.course_framework.status == "active")
+
+
+def board_for_viewer(db: Session, user: User, board_id: int) -> Board | None:
+    """見てよいボードならそれを、見てはいけない・無いなら None（理由は区別しない）。"""
+    board = db.get(Board, board_id)
+    if board is None or not can_view_board(db, user, board):
+        return None
     return board
+
+
+def require_board_openable(user: User, board: Board) -> None:
+    """班のページでボードを開く前の確認（班のメンバーであることは確認済み）。
+    学生が「まだ」のボードを開こうとしたら 403（B-7）。"""
+    if user.role == "student" and board.course_framework.status == "waiting":
+        raise HTTPException(status_code=403)
+
+
+def check_note_write(db: Session, user: User, board: Board) -> None:
+    """付箋を足す・動かす・消す前の確認。書けなければ BoardActionDenied。"""
+    if not can_write_board(db, user, board):
+        raise BoardActionDenied("read_only")
+
+
+def check_note_owner(user: User, board: Board, note) -> None:
+    """動かせる・消せるのは書いた本人だけ（B-2 の③の仮の決定）。"""
+    if note is None or note.board_id != board.id or note.deleted_at is not None:
+        raise BoardActionDenied("not_found")
+    if note.author_id != user.id:
+        raise BoardActionDenied("not_yours")
 
 
 def require_not_started(item) -> None:

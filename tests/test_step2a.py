@@ -257,7 +257,8 @@ def test_班のページに流れの帯とタブが出る(teacher_client, make_c
     html = clients["学生A"].get(f"/teams/{t1.id}").text
     assert "① ブレインストーミング" in html and "② SWOT 分析" in html and "③ ペイオフマトリクス" in html
     assert 'class="fl active' in html and html.count('class="tab ') == 3
-    assert "ステップ 2b" in html
+    assert f'href="/teams/{t1.id}/boards/' in html and "?board=" not in html
+    assert 'id="board"' in html
     assert teacher_client.get(f"/teams/{t1.id}").status_code == 200
     assert clients["学生A"].get(f"/teams/{t2.id}").status_code == 404  # 他の班は今までどおり
 
@@ -372,12 +373,12 @@ def test_学生は_まだ_のボードを開けない(teacher_client, make_clien
     clients, t1, t2 = setup_flow(teacher_client, make_client, course, db)
     teacher_client.post(f"/courses/{course.id}/flow/deal")
     waiting = list(db.scalars(select(Board).where(Board.team_id == t1.id).order_by(Board.id)))[1]
-    url = f"/teams/{t1.id}?board={waiting.id}"
-    html = clients["学生A"].get(url).text
-    assert "盤面はステップ 2b で作ります。（ブレインストーミング）" in html  # 今のボードが開く
+    url = f"/teams/{t1.id}/boards/{waiting.id}"
+    assert clients["学生A"].get(url).status_code == 403  # 開けない（B-7）
+    html = clients["学生A"].get(f"/teams/{t1.id}").text
     assert html.count('<a class="tab') == 1 and html.count('class="tab waiting"') == 2  # 見えるが押せない
     # 先生は「まだ」も開ける
-    assert "盤面はステップ 2b で作ります。（SWOT 分析）" in teacher_client.get(url).text
+    assert 'data-zone="S"' in teacher_client.get(url).text
 
 
 def test_学生の帯には配ったものだけ出て先生には全部出る(teacher_client, make_client, course, db):

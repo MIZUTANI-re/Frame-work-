@@ -2,7 +2,7 @@
 import random
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, Form, Request
+from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -10,10 +10,10 @@ from app.db import get_db
 from app.events import record_event
 from app.flow import boards_of_team, flow_items, give_boards_to_new_team
 from app.framework_defs import FRAMEWORKS, PHASE_NAMES
-from app.models import TEAM_NAME_MAX, Course, Team, TeamMember, User
+from app.models import TEAM_NAME_MAX, Board, Course, Team, TeamMember, User
 from app.queries import students_of
 from app.routers.auth import redirect
-from app.security import (get_current_user, visible_board_for, is_enrolled, require_course_teacher,
+from app.security import (can_write_board, get_current_user, is_enrolled, require_board_openable, require_course_teacher,
                           require_team_member, require_team_teacher, team_of_student)
 from app.templating import render
 
@@ -76,29 +76,47 @@ def create_team_record(db: Session, course_id: int, name: str, actor: User) -> T
     return team
 
 
-@router.get("/teams/{team_id}")
-def team_page(request: Request, team: Team = Depends(require_team_member),
-              user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    """班のページ。上に流れの帯、その下に配られたボードのタブ。盤面はステップ 2b で作る。"""
+def render_team_page(request: Request, db: Session, user: User, team: Team, wanted: Board | None):
+    """班のページ。上に流れの帯、その下に配られたボードのタブと盤面。
+    wanted が None なら今のボード（学生は「いま」、なければ最後の「終わり」）を開く。"""
     items = flow_items(db, team.course_id)
     boards = boards_of_team(db, team.id)
     board_of_item = {b.course_framework_id: b for b in boards}
-    # ?board= で開くタブを選ぶ（この班のボードだけ。違えば今のボード）
-    # 学生が開けるのは「いま」と「終わり」だけ。「まだ」が来たら今のボード（B-7）
-    wanted = next((b for b in boards if str(b.id) == request.query_params.get("board")), None)
-    current = None
-    if boards:
-        current = next((b for b in boards if b.course_framework.status == "active"), None)
-        if current is None and user.role == "student":
-            current = next((b for b in reversed(boards) if b.course_framework.status == "done"), None)
-        if current is None and user.role == "teacher":
-            current = boards[-1]
-    chosen = visible_board_for(user, wanted, current) if (wanted or current) else None
+    chosen = wanted
+    if chosen is None and boards:
+        chosen = next((b for b in boards if b.course_framework.status == "active"), None)
+        if chosen is None and user.role == "student":
+            chosen = next((b for b in reversed(boards) if b.course_framework.status == "done"), None)
+        if chosen is None and user.role == "teacher":
+            chosen = boards[-1]
     if user.role == "student":  # 学生の帯には、この班にボードがある行だけ出す
         items = [i for i in items if i.id in board_of_item]
+    definition = FRAMEWORKS[chosen.framework_key] if chosen else {}
+    zones = definition.get("zones", [])  # 2 軸型（ステップ 4）には区画が無い
+    layout = definition.get("layout", {})
     return render(request, db, "team.html", user=user, course=team.course, team=team,
                   items=items, board_of_item=board_of_item, boards=boards, chosen=chosen,
+                  zones=zones, layout=layout,
+                  writable=bool(chosen) and can_write_board(db, user, chosen),
                   frameworks=FRAMEWORKS, is_student=user.role == "student", phase_names=PHASE_NAMES, active="team")
+
+
+@router.get("/teams/{team_id}")
+def team_page(request: Request, team: Team = Depends(require_team_member),
+              user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """班のページ（今のボードを開く）。"""
+    return render_team_page(request, db, user, team, None)
+
+
+@router.get("/teams/{team_id}/boards/{board_id}")
+def board_page(board_id: int, request: Request, team: Team = Depends(require_team_member),
+               user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """ボードの画面（S-10）。この班のボードでなければ 404。学生が「まだ」を開こうとしたら 403（B-7）。"""
+    board = db.get(Board, board_id)
+    if board is None or board.team_id != team.id:
+        raise HTTPException(status_code=404)
+    require_board_openable(user, board)
+    return render_team_page(request, db, user, team, board)
 
 
 @router.post("/courses/{course_id}/teams")

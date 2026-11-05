@@ -8,3 +8,9 @@ if (shell && button) {
   setupSideToggle(shell, button);
 }
 setupSingleSubmit();
+
+// ボードの画面だけ、盤面をつなぐ
+const boardRoot = document.getElementById("board");
+if (boardRoot) {
+  import("./board.js").then((m) => m.setupBoard(boardRoot));
+}

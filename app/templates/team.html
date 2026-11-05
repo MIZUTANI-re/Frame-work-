@@ -16,14 +16,14 @@
     {% endfor %}
   </div>
 
-  {# ボードのタブ（盤面はステップ 2b で作る） #}
+  {# ボードのタブ（URL は S-10） #}
   <div class="tabs">
     {% for b in boards %}
       {% if is_student and b.course_framework.status == 'waiting' %}
         {# 学生には「まだ」のタブは見えるが押せない（B-7） #}
         <span class="tab waiting">{{ frameworks[b.framework_key].name }}</span>
       {% else %}
-        <a class="tab {{ 'on' if chosen and b.id == chosen.id }}" href="/teams/{{ team.id }}?board={{ b.id }}">{{ frameworks[b.framework_key].name }}</a>
+        <a class="tab {{ 'on' if chosen and b.id == chosen.id }}" href="/teams/{{ team.id }}/boards/{{ b.id }}">{{ frameworks[b.framework_key].name }}</a>
       {% endif %}
     {% endfor %}
   </div>
@@ -33,7 +33,31 @@
         <span class="step {{ 'now' if p == chosen.phase }}">{{ phase_names[p] }}</span>{% if not loop.last %}<span class="arrow">›</span>{% endif %}
       {% endfor %}
     </div>
-    <div class="placeholder">盤面はステップ 2b で作ります。（{{ frameworks[chosen.framework_key].name }}）</div>
+    {% if chosen.course_framework.status == 'done' %}
+      <div class="notice gray">このボードは終わりました。<b>見るだけ</b>で残っています。</div>
+    {% elif not is_student %}
+      <div class="notice gray">教員は<b>閲覧中</b>です（書き込みはしません）。</div>
+    {% else %}
+      <div class="notice">全員の付箋が見えています（作成者の名前つき）。</div>
+    {% endif %}
+    <p class="muted" id="board-status" hidden>つなぎ直しています…</p>
+    {# 付箋は HTML には入れず、WebSocket で受け取る。書き込みの部品は学生にだけ出す #}
+    {% if not zones %}
+      <div class="placeholder">この形の盤面はステップ 4 で作ります。（{{ frameworks[chosen.framework_key].name }}）</div>
+    {% else %}
+    <div id="board" data-board-id="{{ chosen.id }}" data-can-write="{{ 1 if writable else 0 }}">
+      <div class="zone-grid" style="grid-template-columns: repeat({{ layout.columns }}, 1fr)">
+        {% for z in zones %}
+          <div class="zone" data-zone="{{ z.key }}">
+            <h3>{{ z.label }}</h3>
+            <div class="hint">{{ z.hint }}</div>
+            <div class="notes"></div>
+            {% if writable %}<button type="button" class="ghost small write-only" data-add="{{ z.key }}">＋ 付箋を足す</button>{% endif %}
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
   {% endif %}
 {% else %}
   <div class="placeholder">まだボードは配られていません。</div>

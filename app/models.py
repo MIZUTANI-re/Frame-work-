@@ -1,8 +1,9 @@
 """テーブルの定義（データ設計書 §2）。ステップ 1 は User・Course・Enrollment・Team・TeamMember・Event。
-ステップ 2a で CourseFramework・Board・ChatMessage と Course.settings を足した。"""
+ステップ 2a で CourseFramework・Board・ChatMessage と Course.settings を足した。
+ステップ 2b で Note（付箋）を足した。"""
 from datetime import datetime, timezone
 
-from sqlalchemy import JSON, ForeignKey, String, Text, UniqueConstraint
+from sqlalchemy import JSON, Float, ForeignKey, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base, UTCDateTime
@@ -159,3 +160,30 @@ class ChatMessage(Base):
     role: Mapped[str] = mapped_column(String(10))  # user / assistant
     text: Mapped[str] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=now)
+
+
+NOTE_TEXT_MAX = 200
+
+
+class Note(Base):
+    """付箋。消すときは行を残して deleted_at を入れる（D-031）。"""
+    __tablename__ = "notes"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    board_id: Mapped[int] = mapped_column(ForeignKey("boards.id"))
+    author_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    zone_key: Mapped[str | None] = mapped_column(String(50), default=None)
+    # 位置（0〜1）。ゾーン型では区画の中の並びに任せるので、今は真ん中で固定
+    x: Mapped[float] = mapped_column(Float, default=0.5)
+    y: Mapped[float] = mapped_column(Float, default=0.5)
+    text: Mapped[str] = mapped_column(Text)
+    # まとまりの表（Cluster）はステップ 3 で作る。そのとき外部キーを足す
+    cluster_id: Mapped[int | None] = mapped_column(default=None)
+    # 前のボードから持ち込んだときの元（D-033。ステップ 3 で使う）
+    source_note_id: Mapped[int | None] = mapped_column(default=None)
+    source_cluster_id: Mapped[int | None] = mapped_column(default=None)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=now)
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime, default=now)
+    deleted_at: Mapped[datetime | None] = mapped_column(UTCDateTime, default=None)
+
+    author: Mapped[User] = relationship()
